@@ -10,7 +10,7 @@ require('./src/connect/connection');
 const PORT = 3000;
 
 app.use(cors());
-app.options('*', cors())
+app.options('*', cors());
 
 //Middleware
 app.use(bodyParser.json());
