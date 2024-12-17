@@ -1,0 +1,23 @@
+class DepartmentStore {
+    constructor(id_store_dep, id_store, id_department) {
+        this.id_store_dep = id_store_dep;
+        this.id_store = id_store;
+        this.id_department = id_department;
+    }
+
+    validate() {
+        const errors = [];
+
+        if (!this.id_store) {
+            errors.push('El ID de la tienda es obligatorio');
+        }
+
+        if (!this.id_department) {
+            errors.push('El ID del departamento es obligatorio');
+        }
+
+        return errors.length === 0 ? null : errors;
+    }
+}
+
+module.exports = DepartmentStore;
