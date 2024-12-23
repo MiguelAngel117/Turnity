@@ -1,7 +1,47 @@
 const express = require('express');
 const employeeController = require('../../controllers/employeesController');
-
+const SimpleExcelImporter = require('../../utils/excelImport');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+const XLSX = require('xlsx');
 const router = express.Router();
+
+// Configuración básica de multer
+const upload = multer({ dest: 'uploads/' });
+
+// Ruta para importar Excel
+router.post('/import', upload.single('file'), async (req, res) => {
+    try {
+        console.log('Archivo recibido:', req.file);
+        
+        if (!req.file) {
+            return res.status(400).json({ error: 'No se ha proporcionado ningún archivo' });
+        }
+
+        // Leer el archivo Excel
+        const workbook = XLSX.readFile(req.file.path);
+        const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+        const data = XLSX.utils.sheet_to_json(worksheet);
+        const result = await employeeController.createEmployeesFromExcel(data);
+
+        res.json({
+            mensaje: 'Proceso de importación completado',
+            resultado: result
+        });
+
+    } catch (error) {
+        console.error('Error en la importación:', error);
+        res.status(500).json({ error: error.message });
+    } finally {
+        // Limpiar el archivo temporal
+        if (req.file) {
+            const fs = require('fs');
+            fs.unlinkSync(req.file.path);
+        }
+    }
+});
+
 
 // GET: Obtener todos los empleadosuel
 router.get('/', async (req, res) => {

@@ -1,11 +1,13 @@
 const pool = require('../connect/connection');
 const Shift = require('../models/shifts');
+const ShiftGenerator = require('../helpers/shiftGenerator');
+const generator = new ShiftGenerator();
 
 class ShiftController {
     // Obtener todos los turnos
     async getAllShifts() {
         const [shifts] = await pool.execute(`
-            SELECT s.*, e.first_names, e.last_names 
+            SELECT s.*, e.full_name 
             FROM Shifts s
             JOIN Employees e ON s.number_document = e.number_document
         `);
@@ -20,10 +22,66 @@ class ShiftController {
         ));
     }
 
+    async generateShiftsForDepartment(params) {
+        try {
+            return await generator.generateSpecificShifts(params);
+        } catch (error) {
+            throw new Error(`Error en la generación de turnos: ${error.message}`);
+        }
+    }
+
+    // Método mejorado para crear turno manual con validaciones
+    async createShift(shiftData) {        
+        // Validar el turno
+        const validationErrors = generator.validateShift(shiftData);
+        if (validationErrors.length > 0) {
+            throw new Error(validationErrors.join(', '));
+        }
+
+        // Validar horas semanales
+        const weeklyHoursError = await generator.validateWeeklyHours(
+            shiftData.number_document,
+            shiftData.shift_date,
+            shiftData.hours
+        );
+        if (weeklyHoursError) {
+            throw new Error(weeklyHoursError);
+        }
+
+        // Crear el turno si pasa todas las validaciones
+        const shift = new Shift(
+            null,
+            shiftData.hours,
+            shiftData.number_document,
+            shiftData.shift_date,
+            shiftData.break_time,
+            shiftData.initial_hour
+        );
+
+        const [result] = await pool.execute(
+            'INSERT INTO Shifts (hours, number_document, shift_date, break, initial_hour) VALUES (?, ?, ?, ?, ?)',
+            [
+                shift.hours,
+                shift.number_document,
+                shift.shift_date,
+                shift.break_time,
+                shift.initial_hour
+            ]
+        );
+
+        shift.id_shift = result.insertId;
+        return shift;
+    }
+
+    async generateShiftsForWeek(startDate, endDate) {
+        const shiftGenerator = require('../helpers/shiftGenerator');
+        await shiftGenerator.generateWeeklyShifts(startDate, endDate);
+    }
+
     // Obtener turno por ID
     async getShiftById(id_shift) {
         const [shifts] = await pool.execute(`
-            SELECT s.*, e.first_names, e.last_names 
+            SELECT s.*, e.full_name 
             FROM Shifts s
             JOIN Employees e ON s.number_document = e.number_document
             WHERE s.id_shift = ?
@@ -117,7 +175,7 @@ class ShiftController {
     // Obtener turnos por rango de fechas
     async getShiftsByDateRange(startDate, endDate) {
         const [shifts] = await pool.execute(`
-            SELECT s.*, e.first_names, e.last_names 
+            SELECT s.*, e.full_name 
             FROM Shifts s
             JOIN Employees e ON s.number_document = e.number_document
             WHERE shift_date BETWEEN ? AND ?
