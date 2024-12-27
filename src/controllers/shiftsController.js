@@ -3,7 +3,29 @@ const Shift = require('../models/shifts');
 const ShiftGenerator = require('../helpers/shiftGenerator');
 const generator = new ShiftGenerator();
 
-class ShiftController {
+class ShiftController {    
+
+    async generateShifts(storeId, departmentId, positionId, startDate) {
+        const shifts = await generator.generateInitialShiftDistribution(
+            storeId, 
+            departmentId,
+            positionId, 
+            startDate
+        );
+        
+        // Aquí podrías agregar la lógica para guardar los turnos en la base de datos
+        return shifts;
+    }
+
+    async deleteAllShifts() {
+        try {
+            const [result] = await pool.execute('DELETE FROM Shifts');
+            return result.affectedRows;
+        } catch (error) {
+            throw new Error(`Error al eliminar los turnos: ${error.message}`);
+        }
+    }
+    
     // Obtener todos los turnos
     async getAllShifts() {
         const [shifts] = await pool.execute(`
@@ -20,62 +42,6 @@ class ShiftController {
             shift.break, 
             shift.initial_hour
         ));
-    }
-
-    async generateShiftsForDepartment(params) {
-        try {
-            return await generator.generateSpecificShifts(params);
-        } catch (error) {
-            throw new Error(`Error en la generación de turnos: ${error.message}`);
-        }
-    }
-
-    // Método mejorado para crear turno manual con validaciones
-    async createShift(shiftData) {        
-        // Validar el turno
-        const validationErrors = generator.validateShift(shiftData);
-        if (validationErrors.length > 0) {
-            throw new Error(validationErrors.join(', '));
-        }
-
-        // Validar horas semanales
-        const weeklyHoursError = await generator.validateWeeklyHours(
-            shiftData.number_document,
-            shiftData.shift_date,
-            shiftData.hours
-        );
-        if (weeklyHoursError) {
-            throw new Error(weeklyHoursError);
-        }
-
-        // Crear el turno si pasa todas las validaciones
-        const shift = new Shift(
-            null,
-            shiftData.hours,
-            shiftData.number_document,
-            shiftData.shift_date,
-            shiftData.break_time,
-            shiftData.initial_hour
-        );
-
-        const [result] = await pool.execute(
-            'INSERT INTO Shifts (hours, number_document, shift_date, break, initial_hour) VALUES (?, ?, ?, ?, ?)',
-            [
-                shift.hours,
-                shift.number_document,
-                shift.shift_date,
-                shift.break_time,
-                shift.initial_hour
-            ]
-        );
-
-        shift.id_shift = result.insertId;
-        return shift;
-    }
-
-    async generateShiftsForWeek(startDate, endDate) {
-        const shiftGenerator = require('../helpers/shiftGenerator');
-        await shiftGenerator.generateWeeklyShifts(startDate, endDate);
     }
 
     // Obtener turno por ID

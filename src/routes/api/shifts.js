@@ -2,10 +2,55 @@ const express = require('express');
 const shiftController = require('../../controllers/shiftsController');
 const router = express.Router();
 
+// Ruta para generar turnos
+router.post('/generate', async (req, res) => {
+    try {
+        const { 
+            storeId, 
+            departmentId, 
+            positionId, 
+            startDate
+        } = req.body;
+
+        // Validaciones básicas
+        if (!storeId || !departmentId || !positionId || !startDate) {
+            return res.status(400).json({ 
+                error: 'Todos los campos son requeridos: storeId, departmentId, positionId, startDate, endDate' 
+            });
+        }
+
+        const shifts = await shiftController.generateShifts(
+            storeId,
+            departmentId,
+            positionId,
+            startDate
+        );
+
+        res.json({
+            message: 'Turnos generados exitosamente',
+            totalShifts: shifts.length,
+            shifts
+        });
+
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // Rutas para operaciones CRUD básicas
 router.get('/', async (req, res) => {
     try {
         const shifts = await shiftController.getAllShifts();
+        res.json(shifts);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+router.get('/date-range', async (req, res) => {
+    try {
+        const { startDate, endDate } = req.query;
+        const shifts = await shiftController.getShiftsByDateRange(startDate, endDate);
         res.json(shifts);
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -54,6 +99,15 @@ router.delete('/:id', async (req, res) => {
     }
 });
 
+router.delete('/', async (req, res) => {
+    try {
+        await shiftController.deleteAllShifts();
+        res.status(204).send();
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // Rutas para funcionalidades específicas
 router.get('/employee/:number_document', async (req, res) => {
     try {
@@ -64,24 +118,6 @@ router.get('/employee/:number_document', async (req, res) => {
     }
 });
 
-router.get('/date-range', async (req, res) => {
-    try {
-        const { startDate, endDate } = req.query;
-        const shifts = await shiftController.getShiftsByDateRange(startDate, endDate);
-        res.json(shifts);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
 
-// Ruta para generación automática de turnos
-router.post('/generate', async (req, res) => {
-    try {
-        const shifts = await shiftController.generateShiftsForDepartment(req.body);
-        res.status(201).json(shifts);
-    } catch (error) {
-        res.status(400).json({ error: error.message });
-    }
-});
 
 module.exports = router;
