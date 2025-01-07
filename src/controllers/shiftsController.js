@@ -11,21 +11,54 @@ class ShiftController {
             if (!employeeShifts || !Array.isArray(employeeShifts)) {
                 throw new Error('employeeShifts debe ser un array válido');
             }
-
-            // Generar los turnos pasando explícitamente employeeShifts
+    
+            // Validar y generar turnos
             const validatedShifts = await generator.createShifts(
                 storeId,
                 departmentId,
                 positionId,
                 employeeShifts
             );
-            return validatedShifts;
-
+    
+            // Si hay errores de validación, detener el proceso
+            if (!validatedShifts.success) {
+                throw new Error(
+                    `Errores en la validación de turnos: ${JSON.stringify(validatedShifts.errors)}`
+                );
+            }
+    
+            // Guardar los turnos en la base de datos
+            for (const shiftData of validatedShifts.data) {
+                for (const shift of shiftData.shifts) {
+                    await pool.execute(
+                        `INSERT INTO Shifts (hours, number_document, shift_date, break, initial_hour) 
+                        VALUES (?, ?, ?, ?, ?)`,
+                        [
+                            shift.hours, // Número de horas trabajadas
+                            shiftData.employeeId, // ID del empleado
+                            shift.shift_date, // Fecha del turno
+                            shift.break || '00:00:00', // Descanso, valor predeterminado si es nulo
+                            shift.initial_hour || '00:00:00', // Hora inicial, valor predeterminado si es nulo
+                        ]
+                    );
+                }
+            }
+    
+            // Respuesta de éxito
+            return {
+                success: true,
+                message: 'Turnos validados y almacenados correctamente.',
+            };
         } catch (error) {
-            console.error('Error en el controlador de turnos:', error);
-            throw error;
+            console.error('Error en el controlador de generación de turnos:', error);
+            return {
+                success: false,
+                message: 'Error al validar o almacenar los turnos.',
+                errors: error.message,
+            };
         }
     }
+    
 
     async deleteAllShifts() {
         try {

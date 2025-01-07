@@ -56,7 +56,7 @@ class ShiftGenerator {
 
             if (employee.working_day === this.WORKING_DAYS.PART_TIME_16) {
                 //falta validar festivo
-                if (shiftDay !== 0 && shiftDay !== 6) {
+                if (day !== 0 && day !== 6) {
                     shiftErrors.push({
                         field: `shifts[${index}]`,
                         message: 'Los empleados de jornada de 16 horas solo pueden trabajar sábados, domingos o días festivos',
