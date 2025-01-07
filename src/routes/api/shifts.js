@@ -2,20 +2,28 @@ const express = require('express');
 const shiftController = require('../../controllers/shiftsController');
 const router = express.Router();
 
-// Ruta para generar turnos
-router.post('/generate', async (req, res) => {
+router.post('/create', async (req, res) => {
     try {
         const { 
             storeId, 
             departmentId, 
             positionId, 
-            startDate
+            startDate,
+            employeeShifts 
         } = req.body;
 
         // Validaciones básicas
-        if (!storeId || !departmentId || !positionId || !startDate) {
+        if (!storeId || !departmentId || !positionId || !startDate || !employeeShifts) {
             return res.status(400).json({ 
-                error: 'Todos los campos son requeridos: storeId, departmentId, positionId, startDate, endDate' 
+                error: 'Todos los campos son requeridos: storeId, departmentId, positionId, startDate, employeeShifts' 
+            });
+        }
+
+        // Validar formato de fecha
+        const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+        if (!dateRegex.test(startDate)) {
+            return res.status(400).json({
+                error: 'El formato de fecha debe ser YYYY-MM-DD'
             });
         }
 
@@ -23,17 +31,20 @@ router.post('/generate', async (req, res) => {
             storeId,
             departmentId,
             positionId,
-            startDate
+            startDate,
+            employeeShifts
         );
 
         res.json({
-            message: 'Turnos generados exitosamente',
             totalShifts: shifts.length,
             shifts
         });
 
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        console.error('Error en la ruta de creación de turnos:', error);
+        res.status(500).json({ 
+            error: error.message || 'Error interno del servidor'
+        });
     }
 });
 

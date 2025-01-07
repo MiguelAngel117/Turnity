@@ -2,311 +2,348 @@ const pool = require('../connect/connection');
 
 class ShiftGenerator {
     constructor() {
-        this.MIN_HOURS_PER_DAY = 6;
-        this.MAX_HOURS_PER_DAY = 10;
-        this.STORE_OPEN_HOUR = 7;  // Hora de apertura de la tienda
-        this.STORE_CLOSE_HOUR = 22; // Hora de cierre de la tienda
+        this.SHIFT_TYPES = {
+            'CO094': { hours: 10, name: 'Turno largo' },
+            'CO005': { hours: 8, name: 'Turno medio' },
+            'CO015': { hours: 6, name: 'Turno corto' },
+            'DES': { hours: 0, name: 'Descanso' }
+        };
+
+        // Definir los turnos disponibles considerando el horario de la tienda
+        this.STORE_HOURS = {
+            openingTime: 7,    // 7:00 AM
+            closingTime: 22.5, // 10:30 PM
+            shifts: [
+                { start: '07:00:00', type: 'CO094', end: '17:00:00' },  // 7:00 AM - 5:00 PM
+                { start: '08:00:00', type: 'CO005', end: '16:00:00' },  // 8:00 AM - 4:00 PM
+                { start: '10:00:00', type: 'CO015', end: '16:00:00' },  // 10:00 AM - 4:00 PM
+                { start: '12:00:00', type: 'CO005', end: '20:00:00' },  // 12:00 PM - 8:00 PM
+                { start: '14:00:00', type: 'CO015', end: '20:00:00' },  // 2:00 PM - 8:00 PM
+                { start: '12:30:00', type: 'CO094', end: '22:30:00' }   // 12:30 PM - 10:30 PM
+            ]
+        };
+        this.WEEKEND_HOURS = 16;
+        this.MAX_WEEKLY_SHIFTS = 7; // Incluye días de descanso
     }
 
-    // Métodos principales de generación
-
-    async generateSpecificShifts(params) {
-        const {
-            startDate,
-            endDate,
-            storeId,
-            departmentId,
-            positionId
-        } = params;
-
+    async generateInitialShiftDistribution(storeId, departmentId, positionId, startDate) {
         try {
-            // Validar parámetros
-            this.validateParams(params);
-
-            // Obtener empleados específicos según los criterios
-            const employees = await this.getSpecificEmployees(storeId, departmentId, positionId);
+            const employees = await this.getEmployeesByStoreDepPosition(storeId, departmentId, positionId);
             
             if (employees.length === 0) {
-                throw new Error('No se encontraron empleados con los criterios especificados');
+                throw new Error('No se encontraron empleados para los criterios especificados');
             }
 
-            // Generar turnos para los empleados encontrados
-            const generatedShifts = await this.assignShiftsForGroup(employees, startDate, endDate);
+            const weekendEmployees = employees.filter(emp => parseInt(emp.working_day) === this.WEEKEND_HOURS);
+            const regularEmployees = employees.filter(emp => parseInt(emp.working_day) !== this.WEEKEND_HOURS);
             
-            return {
-                success: true,
-                message: `Turnos generados para ${employees.length} empleados`,
-                shifts: generatedShifts
-            };
+            // Inicializar estructuras de seguimiento
+            const shifts = [];
+            const startDateObj = new Date(startDate);
+            const employeeSchedule = this.initializeEmployeeSchedule(employees);
+
+            // Generar turnos para toda la semana
+            for (let day = 0; day < 7; day++) {
+                const currentDate = new Date(startDateObj);
+                currentDate.setDate(currentDate.getDate() + day);
+                const isWeekend = day === 5 || day === 6;
+
+                if (isWeekend) {
+                    const weekendShifts = this.assignWeekendShifts(
+                        currentDate,
+                        weekendEmployees,
+                        employeeSchedule
+                    );
+                    shifts.push(...weekendShifts);
+                }
+
+                const regularShifts = this.assignRegularShifts(
+                    currentDate,
+                    regularEmployees,
+                    employeeSchedule,
+                    isWeekend
+                );
+                shifts.push(...regularShifts);
+            }
+
+            // Asignar días de descanso faltantes
+            this.assignRemainingRestDays(shifts, employees, startDateObj, employeeSchedule);
+            
+            this.validateSchedule(shifts, employees);
+            return shifts;
         } catch (error) {
-            throw new Error(`Error generando turnos: ${error.message}`);
+            throw new Error(`Error al generar distribución de turnos: ${error.message}`);
         }
     }
 
-    async assignShiftsForGroup(employees, startDate, endDate) {
-        const weekDays = this.getDatesBetween(startDate, endDate);
-        const generatedShifts = [];
-        
-        for (const employee of employees) {
-            const weeklyHours = employee.working_day;
-            const schedule = await this.generateEmployeeSchedule(
-                employee,
-                weekDays,
-                weeklyHours
+    initializeEmployeeSchedule(employees) {
+        const schedule = {};
+        employees.forEach(emp => {
+            schedule[emp.number_document] = {
+                weeklyHours: 0,
+                shiftsCount: 0,
+                lastShiftDate: null,
+                workingDays: new Set(),
+                restDays: new Set()
+            };
+        });
+        return schedule;
+    }
+
+    assignRegularShifts(date, employees, employeeSchedule, isWeekend) {
+        const shifts = [];
+        const dayShifts = [...this.STORE_HOURS.shifts];
+        const dateStr = date.toISOString().split('T')[0];
+
+        // Ordenar empleados por horas trabajadas (menos a más)
+        const availableEmployees = employees
+            .filter(emp => this.canWorkOnDate(emp, date, employeeSchedule))
+            .sort((a, b) => {
+                const hoursA = employeeSchedule[a.number_document].weeklyHours;
+                const hoursB = employeeSchedule[b.number_document].weeklyHours;
+                return hoursA - hoursB;
+            });
+
+        // Asignar turnos prioritarios primero (apertura y cierre)
+        const priorityShifts = dayShifts.filter(shift => 
+            shift.start === '07:00:00' || 
+            shift.end === '22:30:00'
+        );
+
+        // Luego asignar el resto de turnos
+        const regularShifts = dayShifts.filter(shift => 
+            !priorityShifts.includes(shift)
+        );
+
+        // Asignar turnos en orden de prioridad
+        [...priorityShifts, ...regularShifts].forEach(shiftTime => {
+            const eligibleEmployee = this.findEligibleEmployee(
+                availableEmployees,
+                employeeSchedule,
+                shiftTime,
+                dateStr
             );
+
+            if (eligibleEmployee) {
+                const shift = this.createShift(
+                    eligibleEmployee,
+                    date,
+                    shiftTime.type,
+                    this.SHIFT_TYPES[shiftTime.type].hours,
+                    shiftTime.start,
+                    shiftTime.end
+                );
+
+                this.updateEmployeeSchedule(
+                    employeeSchedule,
+                    eligibleEmployee.number_document,
+                    shift
+                );
+
+                shifts.push(shift);
+            }
+        });
+
+        return shifts;
+    }
+
+    assignWeekendShifts(date, employees, employeeSchedule) {
+        const shifts = [];
+        const dateStr = date.toISOString().split('T')[0];
+
+        // Asignar turnos específicos para fin de semana
+        const weekendShifts = [
+            { start: '07:00:00', type: 'CO005', end: '15:00:00' },
+            { start: '09:00:00', type: 'CO005', end: '17:00:00' },
+            { start: '11:00:00', type: 'CO005', end: '19:00:00' },
+            { start: '14:30:00', type: 'CO005', end: '22:30:00' }
+        ];
+
+        weekendShifts.forEach(shiftTime => {
+            const eligibleEmployee = this.findEligibleEmployee(
+                employees,
+                employeeSchedule,
+                shiftTime,
+                dateStr
+            );
+
+            if (eligibleEmployee) {
+                const shift = this.createShift(
+                    eligibleEmployee,
+                    date,
+                    shiftTime.type,
+                    8, // Turno fijo de 8 horas para fin de semana
+                    shiftTime.start,
+                    shiftTime.end
+                );
+
+                this.updateEmployeeSchedule(
+                    employeeSchedule,
+                    eligibleEmployee.number_document,
+                    shift
+                );
+
+                shifts.push(shift);
+            }
+        });
+
+        return shifts;
+    }
+
+    findEligibleEmployee(employees, schedule, shiftTime, dateStr) {
+        return employees.find(emp => {
+            const empSchedule = schedule[emp.number_document];
+            const shiftHours = this.SHIFT_TYPES[shiftTime.type].hours;
             
-            // Validar y guardar los turnos generados
-            for (const shift of schedule) {
-                const validationErrors = this.validateShift(shift);
-                if (validationErrors.length === 0) {
-                    const weeklyHoursError = await this.validateWeeklyHours(
-                        employee.number_document,
-                        shift.shift_date,
-                        shift.hours
-                    );
-                    
-                    if (!weeklyHoursError) {
-                        await this.saveShift(shift);
-                        generatedShifts.push(shift);
+            // Verificar si el empleado puede tomar este turno
+            return empSchedule.weeklyHours + shiftHours <= parseInt(emp.working_day) &&
+                   !empSchedule.workingDays.has(dateStr) &&
+                   empSchedule.shiftsCount < this.MAX_WEEKLY_SHIFTS - 1; // Dejar espacio para un día de descanso
+        });
+    }
+
+    assignRemainingRestDays(shifts, employees, startDate, employeeSchedule) {
+        employees.forEach(employee => {
+            const empSchedule = employeeSchedule[employee.number_document];
+            const daysNeeded = this.MAX_WEEKLY_SHIFTS - empSchedule.shiftsCount;
+
+            if (daysNeeded > 0) {
+                for (let day = 0; day < 7; day++) {
+                    const currentDate = new Date(startDate);
+                    currentDate.setDate(currentDate.getDate() + day);
+                    const dateStr = currentDate.toISOString().split('T')[0];
+
+                    if (!empSchedule.workingDays.has(dateStr) && !empSchedule.restDays.has(dateStr)) {
+                        shifts.push(this.createShift(
+                            employee,
+                            currentDate,
+                            'DES',
+                            0,
+                            '00:00:00',
+                            '00:00:00'
+                        ));
+                        empSchedule.restDays.add(dateStr);
+                        empSchedule.shiftsCount++;
                     }
                 }
             }
-        }
-        
-        return generatedShifts;
+        });
     }
 
-    // Métodos de generación de horarios
+    updateEmployeeSchedule(schedule, employeeId, shift) {
+        const empSchedule = schedule[employeeId];
+        const dateStr = shift.shift_date.toISOString().split('T')[0];
 
-    async generateEmployeeSchedule(employee, weekDays, weeklyHours) {
-        const schedule = [];
-        let remainingHours = weeklyHours;
-
-        // Manejar empleados de tiempo parcial (16 horas)
-        if (weeklyHours === 16) {
-            return this.generatePartTimeSchedule(employee, weekDays);
-        }
-
-        // Para empleados de tiempo completo (36 o 46 horas)
-        const sundaysInMonth = await this.getEmployeeSundaysWorked(employee.number_document);
-        const canWorkSunday = sundaysInMonth < 2;
-
-        for (const date of weekDays) {
-            const dayOfWeek = new Date(date).getDay();
-            
-            // Sábado es obligatorio
-            if (dayOfWeek === 6) {
-                const hours = Math.min(8, remainingHours);
-                if (hours > 0) {
-                    schedule.push(this.createShift(employee, date, hours));
-                    remainingHours -= hours;
-                }
-                continue;
-            }
-
-            // Domingo - máximo 2 por mes
-            if (dayOfWeek === 0) {
-                if (canWorkSunday && remainingHours > 0) {
-                    const hours = Math.min(8, remainingHours);
-                    schedule.push(this.createShift(employee, date, hours));
-                    remainingHours -= hours;
-                }
-                continue;
-            }
-
-            // Días entre semana
-            if (remainingHours > 0) {
-                const hours = this.calculateDailyHours(remainingHours, weekDays.length);
-                if (hours > 0) {
-                    schedule.push(this.createShift(employee, date, hours));
-                    remainingHours -= hours;
-                }
-            }
-        }
-
-        return schedule;
+        empSchedule.weeklyHours += shift.hours;
+        empSchedule.shiftsCount++;
+        empSchedule.lastShiftDate = shift.shift_date;
+        empSchedule.workingDays.add(dateStr);
     }
 
-    async generatePartTimeSchedule(employee, weekDays) {
-        const schedule = [];
-        let totalHours = employee.working_day;
+    canWorkOnDate(employee, date, schedule) {
+        const empSchedule = schedule[employee.number_document];
+        const dateStr = date.toISOString().split('T')[0];
 
-        for (const date of weekDays) {
-            const dayOfWeek = new Date(date).getDay();
-            const isHoliday = await this.isHoliday(date);
-
-            // Solo trabajan sábados, domingos y festivos
-            if (dayOfWeek === 6 || dayOfWeek === 0 || isHoliday) {
-                const hours = isHoliday ? 8 : Math.min(8, totalHours);
-                if (hours > 0) {
-                    schedule.push(this.createShift(employee, date, hours));
-                    totalHours -= hours;
-                }
-            }
-        }
-
-        return schedule;
+        // Verificar si el empleado ya tiene un turno o descanso asignado ese día
+        return !empSchedule.workingDays.has(dateStr) && 
+               !empSchedule.restDays.has(dateStr);
     }
 
-    // Métodos de creación y guardado
-
-    createShift(employee, date, hours) {
+    createShift(employee, date, shiftType, hours, initialHour, endHour) {
         return {
             number_document: employee.number_document,
-            shift_date: date,
+            full_name: employee.full_name,
+            workinDay: employee.working_day,
+            store: employee.name_store,
+            department: employee.name_department,
+            position: employee.name_position,
+            shift_type: shiftType,
             hours: hours,
-            initial_hour: this.calculateInitialHour(date),
-            break: '01:00:00' // 1 hora de descanso por defecto
+            shift_date: new Date(date),
+            break: this.calculateBreak(hours),
+            initial_hour: initialHour,
+            end_hour: endHour
         };
     }
 
-    async saveShift(shift) {
-        const [result] = await pool.execute(
-            'INSERT INTO Shifts (hours, number_document, shift_date, break, initial_hour) VALUES (?, ?, ?, ?, ?)',
-            [shift.hours, shift.number_document, shift.shift_date, shift.break, shift.initial_hour]
-        );
-        return result.insertId;
+    calculateBreak(hours) {
+        return hours >= 8 ? '01:00:00' : '00:15:00';
     }
 
-    // Métodos de consulta
-
-    async getSpecificEmployees(storeId, departmentId, positionId) {
-        const [employees] = await pool.execute(`
-            SELECT e.*, ed.id_position, ds.id_store_dep, p.name_position
-            FROM Employees e
-            JOIN Employees_Department ed ON e.number_document = ed.number_document
-            JOIN Department_Store ds ON ed.id_store_dep = ds.id_store_dep
-            JOIN Positions p ON ed.id_position = p.id_position
-            WHERE ds.id_store = ?
-            AND ds.id_department = ?
-            AND ed.id_position = ?
-        `, [storeId, departmentId, positionId]);
-
-        return employees;
-    }
-
-    async getEmployeeSundaysWorked(employeeId) {
-        const [result] = await pool.execute(`
-            SELECT COUNT(*) as sundays
-            FROM Shifts
-            WHERE number_document = ?
-            AND DAYOFWEEK(shift_date) = 1
-            AND MONTH(shift_date) = MONTH(CURRENT_DATE())
-        `, [employeeId]);
-
-        return result[0].sundays;
-    }
-
-    // Métodos de validación
-
-    validateParams(params) {
-        const required = ['startDate', 'endDate', 'storeId', 'departmentId', 'positionId'];
-        const missing = required.filter(param => !params[param]);
+    validateSchedule(shifts, employees) {
+        const schedule = {};
         
-        if (missing.length > 0) {
-            throw new Error(`Faltan parámetros requeridos: ${missing.join(', ')}`);
+        // Inicializar el registro de horarios
+        employees.forEach(emp => {
+            schedule[emp.number_document] = {
+                totalHours: 0,
+                workingDay: parseInt(emp.working_day),
+                shiftsCount: 0,
+                assignedDays: new Set()
+            };
+        });
+
+        // Validar horarios y turnos
+        shifts.forEach(shift => {
+            const empSchedule = schedule[shift.number_document];
+            const dateStr = shift.shift_date.toISOString().split('T')[0];
+
+            empSchedule.totalHours += shift.hours;
+            empSchedule.shiftsCount++;
+            empSchedule.assignedDays.add(dateStr);
+
+            // Validar horas semanales
+            if (empSchedule.totalHours > empSchedule.workingDay) {
+                throw new Error(
+                    `El empleado ${shift.number_document} excede sus horas semanales permitidas. ` +
+                    `Asignadas: ${empSchedule.totalHours}, Máximo: ${empSchedule.workingDay}`
+                );
+            }
+
+            // Validar cantidad de turnos
+            if (empSchedule.shiftsCount > this.MAX_WEEKLY_SHIFTS) {
+                throw new Error(
+                    `El empleado ${shift.number_document} excede el número máximo de turnos semanales.`
+                );
+            }
+
+            // Validar que no haya turnos duplicados en el mismo día
+            if (empSchedule.assignedDays.size !== empSchedule.shiftsCount) {
+                throw new Error(
+                    `El empleado ${shift.number_document} tiene turnos duplicados en un mismo día.`
+                );
+            }
+        });
+    }
+
+    async getEmployeesByStoreDepPosition(storeId, departmentId, positionId) {
+        try {
+            const [employees] = await pool.execute(`
+                SELECT 
+                    e.number_document,
+                    e.full_name,
+                    e.working_day,
+                    p.name_position,
+                    p.id_position,
+                    d.name_department,
+                    s.name_store,
+                    ed.id_store_dep
+                FROM Employees_Department ed
+                JOIN Employees e ON e.number_document = ed.number_document
+                JOIN Positions p ON p.id_position = ed.id_position
+                JOIN Department_Store ds ON ds.id_store_dep = ed.id_store_dep
+                JOIN Departments d ON d.id_department = ds.id_department
+                JOIN Stores s ON s.id_store = ds.id_store
+                WHERE s.id_store = ? 
+                AND d.id_department = ? 
+                AND p.id_position = ?
+                ORDER BY e.working_day DESC
+            `, [storeId, departmentId, positionId]);
+
+            return employees;
+        } catch (error) {
+            throw new Error(`Error al obtener empleados: ${error.message}`);
         }
-
-        if (new Date(params.startDate) > new Date(params.endDate)) {
-            throw new Error('La fecha de inicio debe ser anterior a la fecha de fin');
-        }
-    }
-
-    validateShift(shiftData) {
-        const errors = [];
-
-        // Validar horas diarias
-        if (shiftData.hours < this.MIN_HOURS_PER_DAY || shiftData.hours > this.MAX_HOURS_PER_DAY) {
-            errors.push(`Las horas por turno deben estar entre ${this.MIN_HOURS_PER_DAY} y ${this.MAX_HOURS_PER_DAY}`);
-        }
-
-        // Validar formato de hora inicial
-        const timeRegex = /^([01]\d|2[0-3]):([0-5]\d):([0-5]\d)$/;
-        if (!timeRegex.test(shiftData.initial_hour)) {
-            errors.push('El formato de hora inicial debe ser HH:MM:SS');
-        }
-
-        // Validar break
-        if (!timeRegex.test(shiftData.break)) {
-            errors.push('El formato de break debe ser HH:MM:SS');
-        }
-
-        return errors;
-    }
-
-    async validateWeeklyHours(employeeId, shiftDate, newHours) {
-        const startOfWeek = this.getStartOfWeek(shiftDate);
-        const endOfWeek = this.getEndOfWeek(shiftDate);
-    
-        // Obtener horas trabajadas en la semana
-        const [result] = await pool.execute(`
-            SELECT SUM(s.hours) as weekly_hours
-            FROM Shifts s
-            WHERE s.number_document = ?
-            AND s.shift_date BETWEEN ? AND ?
-        `, [employeeId, startOfWeek, endOfWeek]);
-    
-        const [employeeData] = await pool.execute(`
-            SELECT working_day
-            FROM Employees
-            WHERE number_document = ?
-        `, [employeeId]);
-    
-        const currentWeeklyHours = result[0].weekly_hours || 0;
-        const workingDay = employeeData[0].working_day;
-    
-        if (currentWeeklyHours + newHours > workingDay) {
-            return `Excede las horas semanales permitidas (${workingDay} horas)`;
-        }
-    
-        return null;
-    }
-    
-
-    // Métodos auxiliares
-
-    calculateInitialHour(date) {
-        const baseHour = this.STORE_OPEN_HOUR;
-        const maxStartHour = this.STORE_CLOSE_HOUR - 8; // Asegurar que el turno termine antes del cierre
-        const random = Math.floor(Math.random() * (maxStartHour - baseHour));
-        return `${String(baseHour + random).padStart(2, '0')}:00:00`;
-    }
-
-    calculateDailyHours(remainingHours, remainingDays) {
-        if (remainingDays === 0) return 0;
-        let hours = Math.ceil(remainingHours / remainingDays);
-        return Math.min(Math.max(hours, this.MIN_HOURS_PER_DAY), this.MAX_HOURS_PER_DAY);
-    }
-
-    getDatesBetween(startDate, endDate) {
-        const dates = [];
-        let currentDate = new Date(startDate);
-        const end = new Date(endDate);
-
-        while (currentDate <= end) {
-            dates.push(new Date(currentDate));
-            currentDate.setDate(currentDate.getDate() + 1);
-        }
-
-        return dates;
-    }
-
-    getStartOfWeek(date) {
-        const d = new Date(date);
-        const day = d.getDay();
-        const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-        return new Date(d.setDate(diff));
-    }
-
-    getEndOfWeek(date) {
-        const d = new Date(this.getStartOfWeek(date));
-        return new Date(d.setDate(d.getDate() + 6));
-    }
-
-    async isHoliday(date) {
-        // Aquí deberías implementar la lógica para verificar si una fecha es festivo
-        // Podrías usar una tabla de festivos en la base de datos o un servicio externo
-        return false;
     }
 }
 

@@ -5,7 +5,7 @@ class StoreController {
     // Obtener todas las tiendas
     async getAllStores() {
         const [stores] = await pool.execute('SELECT * FROM Stores');
-        return stores.map(store => new Store(store.id_store, store.name_store));
+        return stores.map(store => new Store(store.id_store, store.name_store, store.hour_open_store));
     }
 
     // Obtener tienda por ID
@@ -20,7 +20,7 @@ class StoreController {
 
     // Crear nueva tienda
     async createStore(storeData) {
-        const store = new Store(storeData.id_store, storeData.name_store);
+        const store = new Store(storeData.id_store, storeData.name_store, storeData.hour_open_store);
 
         const validationErrors = store.validate();
         if (validationErrors) {
@@ -28,8 +28,8 @@ class StoreController {
         }
 
         await pool.execute(
-            'INSERT INTO Stores (id_store, name_store) VALUES (?, ?)', 
-            [store.id_store, store.name_store]
+            'INSERT INTO Stores (id_store, name_store) VALUES (?, ?, ?)', 
+            [store.id_store, store.name_store, store.hour_open_store]
         );
 
         return store;

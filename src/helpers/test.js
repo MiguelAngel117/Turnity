@@ -1,64 +1,20 @@
 const pool = require('../connect/connection');
 const { randomInt } = require('crypto');
 
-class ShiftGenerator {
+class ShiftValidator {
     constructor() {
-        this.MIN_HOURS_PER_DAY = 6;
+        this.MIN_HOURS_PER_DAY = 4;
         this.MAX_HOURS_PER_DAY = 10;
-        this.STORE_OPEN_HOUR = 7;  // Hora de apertura de la tienda
-        this.STORE_CLOSE_HOUR = 22; // Hora de cierre de la tienda
     }
 
-    async generateInitialShiftDistribution(storeId, departmentId, positionId, startDate) {
-        try {
-            // 1. Se obtienen los empleados con base en los parametros de la tienda, departamento y posición
-            const employees = await this.getEmployeesByStoreDepPosition(storeId, departmentId, positionId);
-            
-            if (employees.length === 0) {
-                throw new Error('No se encontraron empleados para los criterios especificados');
-            }
+    async validateShifts(storeId, departmentId, positionId, startDate, shifts) {
+        // 1. Se obtienen los datos del parametro Shifts, en el cual se encuentran los turnos a asignar, junto con la data de los empleados
+        // 2. el día inicial de la fecha debe ser un lunes
+        // 3. dentro de Shifts viene la generación de turnos de un mes completo, un mes laboral(lo que quieredecir que
+        // las semanas se toman a partir de cada lunes y en el mes que esté es decir por ejemplo si la smena de el lunes arranca en diciembre y finaliza el domingo en el mes de enero, esa semana ya hace parte del mes de diciembre ya que es una semana laboral-. 
+        //ya el siguiente lunes si seria parte del mes de enero y así seguiría la lógica para las demás semanas
+        // en pocas palabras se debe tener en cuenta que si la semana empieza en un mes y termina en otro, se toma como parte del mes en el que inicia. por lo cual se pueden llegar a tener meses de 5 semanas laborales o de 4 semanas
 
-            //Tomar los empleados y distribuirlos en los turnos de la semana, 
-            //La idea seria tener 2 for anidados, el primero recorre los 7 días de la semana
-            // el segundo recorre los empleados y los va asignando a los turnos de ese día
-            // teniendo en cuenta la jornada laboral de cada empleado, 
-            //  Pero se debe tener presente que no todos trabajan un mismo día(Excepto los sabados), sino que estos 
-            // se distribuyen a lo largo de la semana con el fin de que haya gente en la aprtura y el cierre. 
-            // Habría que tener en cuenta que pensar en una forma de validar que se tenga cobeertura en todo el día es decir 
-            // que no hayan huecos en donde no hayan empleados
-        
-            const shifts = [];
-                
-            for (const employee of employees) {
-                const weeklyHours = parseInt(employee.working_day);
-        
-                // Generar turnos para la semana
-                const currentDate = new Date(startDate);
-                const end = new Date(currentDate);
-                end.setDate(end.getDate() + 6); // Sumar 6 días a la fecha inicial para que la fecha final sea un domingo
-                
-                while (currentDate <= end) {
-                    const dailyHours = this.calculateDailyHours();
-                    shifts.push({
-                        number_document: employee.number_document,
-                        full_name: employee.full_name,
-                        workinDay: employee.working_day,                      
-                        store: employee.name_store,
-                        department: employee.name_department,
-                        position: employee.name_position,
-                        hours: dailyHours,
-                        shift_date: new Date(currentDate),
-                        break: this.giveBreak(dailyHours),
-                        initial_hour: '08:00:00'//Acá se debe calcular la hora de inicio del turno dado que no todos 
-                        // los empleados asignados a ese día empiezan a la misma hora
-                    });
-                    currentDate.setDate(currentDate.getDate() + 1);
-                }
-            }
-            return shifts;
-        } catch (error) {
-            throw new Error(`Error al generar distribución de turnos: ${error.message}`);
-        }
     }
 
     async getEmployeesByStoreDepPosition(storeId, departmentId, positionId) {

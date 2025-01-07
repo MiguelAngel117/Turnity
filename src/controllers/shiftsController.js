@@ -5,16 +5,26 @@ const generator = new ShiftGenerator();
 
 class ShiftController {    
 
-    async generateShifts(storeId, departmentId, positionId, startDate) {
-        const shifts = await generator.generateInitialShiftDistribution(
-            storeId, 
-            departmentId,
-            positionId, 
-            startDate
-        );
-        
-        // Aquí podrías agregar la lógica para guardar los turnos en la base de datos
-        return shifts;
+    async generateShifts(storeId, departmentId, positionId, startDate, employeeShifts) {
+        try {
+            // Validar que vengan los employeeShifts
+            if (!employeeShifts || !Array.isArray(employeeShifts)) {
+                throw new Error('employeeShifts debe ser un array válido');
+            }
+
+            // Generar los turnos pasando explícitamente employeeShifts
+            const validatedShifts = await generator.createShifts(
+                storeId,
+                departmentId,
+                positionId,
+                employeeShifts
+            );
+            return validatedShifts;
+
+        } catch (error) {
+            console.error('Error en el controlador de turnos:', error);
+            throw error;
+        }
     }
 
     async deleteAllShifts() {
