@@ -1,11 +1,12 @@
 const pool = require('../connect/connection');
 const Shift = require('../models/shifts');
 const ShiftGenerator = require('../helpers/shiftGenerator');
+const moment = require('moment');
 const generator = new ShiftGenerator();
 
 class ShiftController {    
 
-    async generateShifts(storeId, departmentId, positionId, startDate, employeeShifts) {
+    async generateShifts(storeId, departmentId, positionId, startDate, numWeeks, employeeShifts) {
         try {
             // Validar que vengan los employeeShifts
             if (!employeeShifts || !Array.isArray(employeeShifts)) {
@@ -17,6 +18,7 @@ class ShiftController {
                 storeId,
                 departmentId,
                 positionId,
+                numWeeks,
                 employeeShifts
             );
     
@@ -58,7 +60,40 @@ class ShiftController {
             };
         }
     }
+
+    async generateWeeksPerMonth(date) {
+        const inputDate = moment(date, 'YYYY-MM-DD');
+        if (!inputDate.isValid()) {
+            throw new Error('Invalid date format. Please use YYYY-MM-DD.');
+        }
     
+        const startOfMonth = inputDate.clone().startOf('month');
+        const endOfMonth = inputDate.clone().endOf('month');
+    
+        // Encontrar el primer lunes del mes
+        let firstMonday = startOfMonth.clone().startOf('isoWeek');
+        // Si el primer lunes está en el mes anterior, avanzamos una semana
+        if (firstMonday.isBefore(startOfMonth)) {
+            firstMonday.add(7, 'days');
+        }
+    
+        const weeks = [];
+        let currentMonday = firstMonday.clone();
+    
+        // Iteramos mientras estemos dentro del mes o el lunes pertenezca al mes
+        while (currentMonday.month() === startOfMonth.month()) {
+            const weekEnd = currentMonday.clone().endOf('isoWeek');
+    
+            weeks.push({
+                start: currentMonday.format('YYYY-MM-DD'),
+                end: weekEnd.format('YYYY-MM-DD'),
+            });
+    
+            currentMonday = currentMonday.clone().add(7, 'days');
+        }
+    
+        return weeks;
+    }
 
     async deleteAllShifts() {
         try {

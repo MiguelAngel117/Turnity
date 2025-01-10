@@ -1,4 +1,5 @@
 const express = require('express');
+const moment = require('moment');
 const shiftController = require('../../controllers/shiftsController');
 const router = express.Router();
 
@@ -9,6 +10,7 @@ router.post('/create', async (req, res) => {
             departmentId, 
             positionId, 
             startDate,
+            numWeeks,
             employeeShifts 
         } = req.body;
 
@@ -32,6 +34,7 @@ router.post('/create', async (req, res) => {
             departmentId,
             positionId,
             startDate,
+            numWeeks,
             employeeShifts
         );
 
@@ -86,6 +89,22 @@ router.post('/', async (req, res) => {
         res.status(201).json(newShift);
     } catch (error) {
         res.status(400).json({ error: error.message });
+    }
+});
+
+router.post('/generate-weeks', async (req, res) => {
+    const { date } = req.body;
+
+    if (!date || !moment(date, 'YYYY-MM-DD', true).isValid()) {
+        return res.status(400).json({ error: 'Invalid or missing date. Use format YYYY-MM-DD.' });
+    }
+
+    try {
+        const weeks = await shiftController.generateWeeksPerMonth(date);
+        res.json({ weeks });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: error.message });
     }
 });
 
