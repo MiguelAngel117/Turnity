@@ -30,7 +30,6 @@ class ShiftGenerator {
             errors: []
         };
 
-        // Validar que weeklyShifts sea un array válido
         if (!Array.isArray(weeklyShifts)) {
             validation.errors.push({
                 field: 'weeklyShifts',
@@ -42,108 +41,118 @@ class ShiftGenerator {
 
         let totalHours = 0;
         let totalSundayWorkCount = 0;
-        const shiftErrors = [];
-        let worksOnSaturday = false;
+        let hasWorkOnSaturday = false;
 
         // Procesar todos los turnos de todas las semanas
-        weeklyShifts.forEach((weeklyShift, weekIndex) => {
+        for (let weekIndex = 0; weekIndex < weeklyShifts.length; weekIndex++) {
+            const weeklyShift = weeklyShifts[weekIndex];
+            
             if (!weeklyShift.shifts || !Array.isArray(weeklyShift.shifts)) {
-                shiftErrors.push({
+                validation.errors.push({
                     field: `weeklyShifts[${weekIndex}].shifts`,
                     message: 'Los turnos deben ser un array válido',
                     employeeId: employee?.number_document || 'Unknown'
                 });
-                return;
+                continue;
             }
 
-            weeklyShift.shifts.forEach((shift, shiftIndex) => {
+            for (let shiftIndex = 0; shiftIndex < weeklyShift.shifts.length; shiftIndex++) {
+                const shift = weeklyShift.shifts[shiftIndex];
+                
                 if (!shift || typeof shift.hours !== 'number' || !shift.shift_date) {
-                    shiftErrors.push({
+                    validation.errors.push({
                         field: `weeklyShifts[${weekIndex}].shifts[${shiftIndex}]`,
                         message: 'El turno debe incluir un número de horas válido y una fecha',
                         employeeId: employee?.number_document || 'Unknown'
                     });
-                    return;
+                    continue;
                 }
 
                 const shiftDate = new Date(shift.shift_date);
-                const shiftDay = shiftDate.getDay() + 1; // 0: Domingo, 6: Sábado
+                const shiftDay = shiftDate.getDay() + 1; // 7: Domingo, 6: Sábado
 
                 // Validar horas del turno
                 if (shift.hours !== 0 && (shift.hours < this.HOURS.MIN_NUM_HOURS || shift.hours > this.HOURS.MAX_NUM_HOURS)) {
-                    shiftErrors.push({
+                    validation.errors.push({
                         field: `weeklyShifts[${weekIndex}].shifts[${shiftIndex}]`,
                         message: `Las horas del turno deben ser 0 o estar entre ${this.HOURS.MIN_NUM_HOURS} y ${this.HOURS.MAX_NUM_HOURS} horas`,
                         employeeId: employee?.number_document || 'Unknown'
                     });
-                    return;
                 }
 
                 totalHours += shift.hours;
 
-                // Verificar trabajo en sábado
-                if(shiftDay === 6 && shift.hours == 0) {
-                    console.log('Dont WOrk'+ worksOnSaturday + ' ' + shift.shift_date);
-                    validation.errors.push({
-                        field: 'weeklyShifts',
-                        message: 'El empleado debe tener al menos un turno asignado el sábado' + shift.shift_date,
-                        employeeId: employee.number_document
-                    });
-                    return;
-                }
-
-                // Contar domingos trabajados
-                if (shiftDay === 7 && shift.hours > 0 && 
-                    (employee.working_day === this.WORKING_DAYS.PART_TIME_36 || 
-                     employee.working_day === this.WORKING_DAYS.FULL_TIME)) {
-                    totalSundayWorkCount++;
-                }
-
-                // Validar empleados de jornada 16 horas
-                if (employee.working_day === this.WORKING_DAYS.PART_TIME_16) {
-                    if (shiftDay !== 6 && shiftDay !== 7 && shift.hours > 0) {
-                        console.log('shiftDay', shiftDay);
-                        console.log('shift', shift.shift_date);
-                        shiftErrors.push({
+                if(employee.working_day === this.WORKING_DAYS.PART_TIME_36 || employee.working_day === this.WORKING_DAYS.FULL_TIME) {
+                    // Verificar trabajo en sábado
+                    if(shiftDay === 6 && shift.hours == 0) {
+                        console.log('No Trabajo en sábado' + shift.shift_date
+                        );
+                        hasWorkOnSaturday = true;
+                    }
+                    
+                    // Contar domingos trabajados
+                    if (shiftDay === 7 && shift.hours > 0) {
+                        totalSundayWorkCount++;
+                    }
+                } else if(employee.working_day === this.WORKING_DAYS.PART_TIME_16) {
+                    if (shiftDay !== 6 && shiftDay !== 7 && !this.isHoliday(shiftDate) && shift.hours > 0) {
+                        validation.errors.push({
                             field: `weeklyShifts[${weekIndex}].shifts[${shiftIndex}]`,
                             message: 'Los empleados de jornada de 16 horas solo pueden trabajar sábados, domingos o días festivos',
                             employeeId: employee.number_document
                         });
                     }
                 }
+            }
+        }
+
+        // Colección de todas las validaciones necesarias
+        const validations = [];
+
+        // Validar que haya al menos un sábado trabajado para empleados full-time y part-time 36
+        if (employee.working_day === this.WORKING_DAYS.PART_TIME_36 || employee.working_day === this.WORKING_DAYS.FULL_TIME) {
+            validations.push(() => {
+                if (hasWorkOnSaturday) {
+                    validation.errors.push({
+                        field: 'weeklyShifts',
+                        message: 'El empleado debe tener al menos un turno asignado el sábado',
+                        employeeId: employee.number_document
+                    });
+                }
             });
-        });
+        }
 
         // Validar límite de domingos según número de semanas
-        const maxSundays = numWeeks === 5 ? this.SUNDAYS_ALLOWED.FIVE_WEEKS : this.SUNDAYS_ALLOWED.FOUR_WEEKS;
-        console.log('maxSundays', totalSundayWorkCount);
-        if (totalSundayWorkCount > maxSundays) {
-            shiftErrors.push({
-                field: 'weeklyShifts',
-                message: `El empleado no puede trabajar más de ${maxSundays} domingos en ${numWeeks} semanas`,
-                employeeId: employee.number_document
-            });
-        }
+        validations.push(() => {
+            const maxSundays = numWeeks === 5 ? this.SUNDAYS_ALLOWED.FIVE_WEEKS : this.SUNDAYS_ALLOWED.FOUR_WEEKS;
+            if (totalSundayWorkCount > maxSundays) {
+                validation.errors.push({
+                    field: 'weeklyShifts',
+                    message: `El empleado no puede trabajar más de ${maxSundays} domingos en ${numWeeks} semanas`,
+                    employeeId: employee.number_document
+                });
+            }
+        });
 
-        if (shiftErrors.length > 0) {
-            validation.errors.push(...shiftErrors);
-            return validation;
-        }
+        // Validar total de horas
+        validations.push(() => {
+            if (totalHours > (employee.working_day * numWeeks)) {
+                validation.errors.push({
+                    field: 'totalHours',
+                    message: `Las horas totales (${totalHours}) exceden la jornada laboral permitida (${employee.working_day * numWeeks} horas para ${numWeeks} semanas)`,
+                    employeeId: employee.number_document
+                });
+            }
+        });
 
-        if (totalHours > (employee.working_day * numWeeks)) {
-            validation.errors.push({
-                field: 'totalHours',
-                message: `Las horas totales (${totalHours}) exceden la jornada laboral permitida (${employee.working_day * numWeeks} horas para ${numWeeks} semanas)`,
-                employeeId: employee.number_document
-            });
-            return validation;
-        }
+        // Ejecutar todas las validaciones
+        validations.forEach(validateFn => validateFn());
 
-        validation.isValid = true;
+        validation.isValid = validation.errors.length === 0;
         validation.data = {
             totalHours,
             sundayWorkCount: totalSundayWorkCount,
-            message: "Las horas son correctas"
+            message: validation.isValid ? "Las horas son correctas" : "Se encontraron errores en la validación"
         };
 
         return validation;
@@ -153,7 +162,7 @@ class ShiftGenerator {
         const response = {
             success: false,
             data: null,
-            errors: []
+            errors: [] 
         };
 
         try {
