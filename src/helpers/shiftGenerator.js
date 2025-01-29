@@ -1,3 +1,4 @@
+
 class ShiftGenerator {
     constructor() {
         this.WORKING_DAYS = {
@@ -18,8 +19,7 @@ class ShiftGenerator {
         }
     }
 
-    isHoliday(date) {
-        // Implementa tu lógica para determinar si una fecha es festiva.
+    isHoliday() {
         return false;
     }
 
@@ -94,8 +94,17 @@ class ShiftGenerator {
                     if (shiftDay === 7 && shift.hours > 0) {
                         totalSundayWorkCount++;
                     }
-                } else if(employee.working_day === this.WORKING_DAYS.PART_TIME_16) {
-                    if (shiftDay !== 6 && shiftDay !== 7 && !this.isHoliday(shiftDate) && shift.hours > 0) {
+                } else if(employee.working_day === this.WORKING_DAYS.PART_TIME_24) {
+                    if(shiftDay === 7 && shift.hours == 0) {
+                        console.log("Es 24hras y no trabaja el domingo" + shift.shift_date);
+                        validation.errors.push({
+                            field: `weeklyShifts[${weekIndex}].shifts[${shiftIndex}]`,
+                            message: 'Los empleados de jornada de 24 horas deben trabajar todos los domingos',
+                            employeeId: employee.number_document
+                        });
+                    }
+                } else {
+                    if (shiftDay !== 6 && shiftDay !== 7 && shift.hours > 0) {
                         validation.errors.push({
                             field: `weeklyShifts[${weekIndex}].shifts[${shiftIndex}]`,
                             message: 'Los empleados de jornada de 16 horas solo pueden trabajar sábados, domingos o días festivos',
@@ -136,10 +145,10 @@ class ShiftGenerator {
 
         // Validar total de horas
         validations.push(() => {
-            if (totalHours > (employee.working_day * numWeeks)) {
+            if (totalHours !== (employee.working_day * numWeeks)) {
                 validation.errors.push({
                     field: 'totalHours',
-                    message: `Las horas totales (${totalHours}) exceden la jornada laboral permitida (${employee.working_day * numWeeks} horas para ${numWeeks} semanas)`,
+                    message: `Las horas totales (${totalHours}) no coninciden con la jornada laboral permitida (${employee.working_day * numWeeks} horas para ${numWeeks} semanas)`,
                     employeeId: employee.number_document
                 });
             }
