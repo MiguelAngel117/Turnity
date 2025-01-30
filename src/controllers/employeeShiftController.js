@@ -291,6 +291,40 @@ class EmployeeShiftController {
         }
     }
 
+    async generateWeeksPerMonth(date) {
+        const inputDate = moment(date, 'YYYY-MM-DD');
+        if (!inputDate.isValid()) {
+            throw new Error('Invalid date format. Please use YYYY-MM-DD.');
+        }
+    
+        const startOfMonth = inputDate.clone().startOf('month');
+        const endOfMonth = inputDate.clone().endOf('month');
+    
+        // Encontrar el primer lunes del mes
+        let firstMonday = startOfMonth.clone().startOf('isoWeek');
+        // Si el primer lunes está en el mes anterior, avanzamos una semana
+        if (firstMonday.isBefore(startOfMonth)) {
+            firstMonday.add(7, 'days');
+        }
+    
+        const weeks = [];
+        let currentMonday = firstMonday.clone();
+
+        // Iteramos mientras estemos dentro del mes o el lunes pertenezca al mes
+        while (currentMonday.month() === startOfMonth.month()) {
+            const weekEnd = currentMonday.clone().endOf('isoWeek');
+    
+            weeks.push({
+                start: currentMonday.format('YYYY-MM-DD'),
+                end: weekEnd.format('YYYY-MM-DD'),
+            });
+    
+            currentMonday = currentMonday.clone().add(7, 'days');
+        }
+    
+        return weeks;
+    }
+
     async getShiftsByDateRange(startDate, endDate) {
         try {
             const [shifts] = await pool.execute(`
@@ -327,6 +361,59 @@ class EmployeeShiftController {
             };
         }
     }
+
+    async getAllEmployeeShifts() {
+        try {
+            const [shifts] = await pool.execute(`
+                SELECT es.id_shift_his, es.number_document, es.turn, es.shift_date, es.break,
+                       s.hours, s.initial_hour,
+                       e.full_name AS employee_name, e.num_doc_manager, 
+                       m.full_name AS manager_name,
+                       st.name_store
+                FROM Employee_Shift es
+                JOIN Employees e ON es.number_document = e.number_document
+                JOIN Shifts s ON es.turn = s.code_shift
+                LEFT JOIN Employees m ON e.num_doc_manager = m.number_document
+                LEFT JOIN Employees_Department ed ON e.number_document = ed.number_document
+                LEFT JOIN Department_Store ds ON ed.id_store_dep = ds.id_store_dep
+                LEFT JOIN Stores st ON ds.id_store = st.id_store
+            `);
+    
+            if (shifts.length === 0) {
+                return {
+                    status: 404,
+                    data: []
+                };
+            }
+    
+            const formattedShifts = shifts.map(shift => {
+                let codigoTurno = shift.turn;    
+                return {
+                    codigo_persona: shift.number_document,
+                    nombre: shift.employee_name,
+                    codigo_turno: (shift.hours === 0)? 'DES': codigoTurno,
+                    inicio_turno: shift.shift_date.toISOString().split('T')[0],
+                    termino_turno: shift.shift_date.toISOString().split('T')[0],
+                    horas: shift.hours,
+                    turno: (shift.hours === 0)? codigoTurno: `${shift.hours}H ${shift.initial_hour.slice(0, 5)}`,
+                    cedula_jefe: shift.num_doc_manager,
+                    nombre_jefe: shift.manager_name,
+                    tienda: shift.name_store
+                };
+            });
+    
+            return {
+                status: 200,
+                data: formattedShifts
+            };
+        } catch (error) {
+            return {
+                status: 500,
+                message: `Error al obtener los turnos: ${error.message}`
+            };
+        }
+    }
+    
 }
 
 module.exports = new EmployeeShiftController();

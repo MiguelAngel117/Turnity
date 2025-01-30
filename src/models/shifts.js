@@ -1,8 +1,9 @@
 class Shift {
-    constructor(code_shift, hours, initial_hour) {
+    constructor(code_shift, hours, initial_hour, end_hour) {
         this.code_shift = code_shift;
         this.hours = hours;
         this.initial_hour = initial_hour;
+        this.end_hour = end_hour;
     }
 
     validate() {

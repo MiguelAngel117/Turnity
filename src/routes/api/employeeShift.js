@@ -58,7 +58,24 @@ router.post('/create', async (req, res) => {
     }
 });
 
-// Rutas para operaciones CRUD básicas
+
+router.get('/employee-shifts', async (req, res) => {
+    try {
+        const result = await shiftController.getAllEmployeeShifts();
+        return res.status(result.status).json({
+            success: result.status < 400,
+            message: result.message,
+            data: result.data
+        });
+    } catch (error) {
+        return res.status(500).json({
+            success: false,
+            message: error.message,
+            data: null
+        });
+    }
+});
+
 router.get('/', async (req, res) => {
     try {
         const result = await shiftController.getAllShifts();
