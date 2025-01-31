@@ -362,14 +362,24 @@ class EmployeeShiftController {
         }
     }
 
-    async getAllEmployeeShifts() {
+    async getAllEmployeeShifts(store = null, department = null) {
         try {
-            const [shifts] = await pool.execute(`
+            let whereClause = "";
+
+            if (store) {
+                whereClause += ` WHERE st.id_store = ?`;
+                if (department) {
+                    whereClause += store ? ` AND ds.id_department = ?` : ` WHERE ds.id_department = ?`;
+                }
+            }
+        
+            const query = `
                 SELECT es.id_shift_his, es.number_document, es.turn, es.shift_date, es.break,
                        s.hours, s.initial_hour,
                        e.full_name AS employee_name, e.num_doc_manager, 
                        m.full_name AS manager_name,
-                       st.name_store
+                       st.name_store,
+                       d.name_department
                 FROM Employee_Shift es
                 JOIN Employees e ON es.number_document = e.number_document
                 JOIN Shifts s ON es.turn = s.code_shift
@@ -377,7 +387,15 @@ class EmployeeShiftController {
                 LEFT JOIN Employees_Department ed ON e.number_document = ed.number_document
                 LEFT JOIN Department_Store ds ON ed.id_store_dep = ds.id_store_dep
                 LEFT JOIN Stores st ON ds.id_store = st.id_store
-            `);
+                LEFT JOIN Departments d ON ds.id_department = d.id_department
+                ${whereClause}
+            `;
+    
+            const params = [];
+            if (store) params.push(store);
+            if (department) params.push(department);
+    
+            const [shifts] = await pool.execute(query, params);
     
             if (shifts.length === 0) {
                 return {
@@ -398,7 +416,8 @@ class EmployeeShiftController {
                     turno: (shift.hours === 0)? codigoTurno: `${shift.hours}H ${shift.initial_hour.slice(0, 5)}`,
                     cedula_jefe: shift.num_doc_manager,
                     nombre_jefe: shift.manager_name,
-                    tienda: shift.name_store
+                    tienda: shift.name_store,
+                    departamento: shift.name_department
                 };
             });
     
@@ -412,8 +431,7 @@ class EmployeeShiftController {
                 message: `Error al obtener los turnos: ${error.message}`
             };
         }
-    }
-    
+    }   
 }
 
 module.exports = new EmployeeShiftController();

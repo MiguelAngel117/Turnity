@@ -30,7 +30,7 @@ router.get('/breaks/:code_shift', async (req, res) => {
     } catch (error) {
         res.status(400).json({ error: error.message });
     }
-});
+})
 
 // GET: Obtener turno por código
 router.get('/:code_shift', async (req, res) => {

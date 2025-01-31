@@ -61,7 +61,8 @@ router.post('/create', async (req, res) => {
 
 router.get('/employee-shifts', async (req, res) => {
     try {
-        const result = await shiftController.getAllEmployeeShifts();
+        const { store, department } = req.query;
+        const result = await shiftController.getAllEmployeeShifts(store, department);
         return res.status(result.status).json({
             success: result.status < 400,
             message: result.message,
@@ -75,6 +76,7 @@ router.get('/employee-shifts', async (req, res) => {
         });
     }
 });
+
 
 router.get('/', async (req, res) => {
     try {
