@@ -376,7 +376,7 @@ class EmployeeShiftController {
             const query = `
                 SELECT es.id_shift_his, es.number_document, es.turn, es.shift_date, es.break,
                        s.hours, s.initial_hour,
-                       e.full_name AS employee_name, e.num_doc_manager, 
+                       e.full_name AS employee_name, e.num_doc_manager, e.working_day,
                        m.full_name AS manager_name,
                        st.name_store,
                        d.name_department
@@ -409,6 +409,7 @@ class EmployeeShiftController {
                 return {
                     codigo_persona: shift.number_document,
                     nombre: shift.employee_name,
+                    jornada: shift.working_day,
                     codigo_turno: (shift.hours === 0)? 'DES': codigoTurno,
                     inicio_turno: shift.shift_date.toISOString().split('T')[0],
                     termino_turno: shift.shift_date.toISOString().split('T')[0],
