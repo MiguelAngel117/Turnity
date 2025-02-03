@@ -1,5 +1,7 @@
 
 class ShiftGenerator {
+    listSpecialDays = ["X", "CUMPLEAÑOS", "VACACIONES", "INCAPACIDAD", "JURADO VOT", "DIA_FAMILIA", "LICENCIA", "DIA_DISFRUTE"];
+    
     constructor() {
         this.WORKING_DAYS = {
             FULL_TIME: 46,

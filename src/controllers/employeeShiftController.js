@@ -6,18 +6,20 @@ const EmployeeShift = require('../models/employeeShift');
 const generator = new ShiftGenerator();
 
 class EmployeeShiftController {
+    listSpecialDays = ["X", "CUMPLEAÑOS", "VACACIONES", "INCAPACIDAD", "JURADO VOT", "DIA_FAMILIA", "LICENCIA", "DIA_DISFRUTE"];
+    
     async validateOrFindShift(shiftData) {
         try {
             if (shiftData.turn) {
                 const [shifts] = await pool.execute(
-                    'SELECT * FROM Shifts WHERE code_shift = ? AND hours = ? AND initial_hour = ?',
-                    [shiftData.turn, shiftData.hours, shiftData.initial_hour]
+                    'SELECT * FROM Shifts WHERE code_shift = ?',
+                    [shiftData.turn]
                 );
                 
                 if (shifts.length === 0) {
                     return {
                         status: 404,
-                        message: `No existe un turno con el código ${shiftData.code_shift} y las horas especificadas`
+                        message: `No existe un turno con el código ${shiftData.code_shift}`
                     };
                 }
                 
@@ -362,21 +364,26 @@ class EmployeeShiftController {
         }
     }
 
-    async getAllEmployeeShifts(store = null, department = null) {
+    async getAllEmployeeShifts(store = null, department = null, report = false) {
         try {
-            let whereClause = "";
-
+            let conditions = [];
+            let params = [];
+    
             if (store) {
-                whereClause += ` WHERE st.id_store = ?`;
-                if (department) {
-                    whereClause += store ? ` AND ds.id_department = ?` : ` WHERE ds.id_department = ?`;
-                }
+                conditions.push("st.id_store = ?");
+                params.push(store);
             }
-        
+            if (department) {
+                conditions.push("ds.id_department = ?");
+                params.push(department);
+            }
+    
+            const whereClause = conditions.length > 0 ? ` WHERE ${conditions.join(" AND ")}` : "";
+    
             const query = `
                 SELECT es.id_shift_his, es.number_document, es.turn, es.shift_date, es.break,
                        s.hours, s.initial_hour,
-                       e.full_name AS employee_name, e.num_doc_manager, e.working_day,
+                       e.full_name AS employee_name, e.num_doc_manager, e.working_day, 
                        m.full_name AS manager_name,
                        st.name_store,
                        d.name_department
@@ -391,30 +398,30 @@ class EmployeeShiftController {
                 ${whereClause}
             `;
     
-            const params = [];
-            if (store) params.push(store);
-            if (department) params.push(department);
-    
             const [shifts] = await pool.execute(query, params);
     
             if (shifts.length === 0) {
-                return {
-                    status: 404,
-                    data: []
-                };
+                return { status: 404, data: [] };
             }
     
+            const isSpecialDay = (codigoTurno) => this.listSpecialDays.includes(codigoTurno);
+            const getFinalHours = (shift, specialDay, hours) => (shift.working_day === 36 && specialDay && hours != 0) ? 6 : shift.hours;
+    
             const formattedShifts = shifts.map(shift => {
-                let codigoTurno = shift.turn;    
+                const codigoTurno = shift.turn;
+                const specialDay = isSpecialDay(codigoTurno);
+                const finalHours = getFinalHours(shift, specialDay, shift.hours);
+                const turno = (specialDay && report) ? codigoTurno : `${finalHours}H ${shift.initial_hour.slice(0, 5)}`;
+                
                 return {
                     codigo_persona: shift.number_document,
                     nombre: shift.employee_name,
                     jornada: shift.working_day,
-                    codigo_turno: (shift.hours === 0)? 'DES': codigoTurno,
+                    codigo_turno: report? (specialDay ? 'DES' : codigoTurno) : codigoTurno,
                     inicio_turno: shift.shift_date.toISOString().split('T')[0],
                     termino_turno: shift.shift_date.toISOString().split('T')[0],
-                    horas: shift.hours,
-                    turno: (shift.hours === 0)? codigoTurno: `${shift.hours}H ${shift.initial_hour.slice(0, 5)}`,
+                    horas: finalHours,
+                    turno,
                     cedula_jefe: shift.num_doc_manager,
                     nombre_jefe: shift.manager_name,
                     tienda: shift.name_store,
@@ -422,17 +429,14 @@ class EmployeeShiftController {
                 };
             });
     
-            return {
-                status: 200,
-                data: formattedShifts
-            };
+            return { status: 200, data: formattedShifts };
+    
         } catch (error) {
-            return {
-                status: 500,
-                message: `Error al obtener los turnos: ${error.message}`
-            };
+            console.error("Error al obtener los turnos:", error);
+            return { status: 500, message: `Error al obtener los turnos: ${error.message}` };
         }
-    }   
+    }
+     
 }
 
 module.exports = new EmployeeShiftController();
