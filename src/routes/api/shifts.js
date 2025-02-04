@@ -71,9 +71,9 @@ router.post('/bulk', async (req, res) => {
 });
 
 // PUT: Actualizar turno
-router.put('/:code_shift', async (req, res) => {
+router.put('/', async (req, res) => {
     try {
-        const updatedShift = await shiftController.updateShift(req.params.code_shift, req.body);
+        const updatedShift = await shiftController.updateShifts(req.params.code_shift, req.body);
         res.json(updatedShift);
     } catch (error) {
         res.status(400).json({ error: error.message });

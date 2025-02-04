@@ -63,9 +63,6 @@ class EmployeeShiftController {
             }
     
             const validatedShifts = await generator.createShifts(
-                storeId,
-                departmentId,
-                positionId,
                 numWeeks,
                 employeeShifts
             );
@@ -194,36 +191,119 @@ class EmployeeShiftController {
         }
     }
 
-    async updateShift(id_shift_his, shiftData) {
+    async updateShifts(date, employees) { 
         try {
-            const shiftExists = await this.getShiftById(id_shift_his);
-            if (shiftExists.status === 404) {
-                return shiftExists;
+            // 1. Generamos las semanas del mes a partir de la fecha proporcionada
+            const { weeks, totalWeeks, startDate, endDate } = await this.generateWeeksPerMonth(date);
+            let employeeShifts = [];
+            const numWeeks = weeks.length;
+            
+            // 2. Iteramos sobre cada empleado y sus turnos a actualizar
+            for (const employee of employees) {
+                const { employeeId, working_day, updateShifts } = employee;
+        
+                // 3. Obtenemos los turnos actuales del empleado en el rango de fechas
+                const [currentShifts] = await pool.execute(
+                    `SELECT es.shift_date, es.turn, es.break, s.hours, s.initial_hour 
+                    FROM Employee_Shift es
+                    JOIN Shifts s ON es.turn = s.code_shift
+                    WHERE es.number_document = ? 
+                    AND es.shift_date BETWEEN ? AND ?`,
+                    [employeeId, startDate, endDate]
+                );
+    
+                // 4. Creamos una copia de los turnos actuales y actualizamos los turnos correspondientes
+                const updatedShifts = [...currentShifts];  // Crea una copia de los turnos actuales
+    
+                updateShifts.forEach(update => {
+                    //Se deben meter de a 7 dias por cada semana no todos los dias
+                    const shiftIndex = updatedShifts.findIndex(shift => {
+                        // Formateamos ambas fechas para comparar solo año, mes y día
+                        const shiftDate = new Date(shift.shift_date).toISOString().split('T')[0]; // 2025-01-06
+                        const updateDate = update.shift_date;
+                        return shiftDate === updateDate;
+                    });
+                    if (shiftIndex !== -1) {
+                        // Actualizamos el turno existente con los nuevos datos
+                        updatedShifts[shiftIndex] = {
+                            ...updatedShifts[shiftIndex],
+                            turn: update.turn,
+                            break: update.break,
+                            hours: update.hours,
+                            initial_hour: update.initial_hour
+                        };
+                    } else {
+                        // Si no encontramos el turno, agregamos el nuevo turno
+                        updatedShifts.push({
+                            shift_date: update.shift_date,
+                            turn: update.turn,
+                            break: update.break,
+                            hours: update.hours,
+                            initial_hour: update.initial_hour
+                        });
+                    }
+                });
+
+                //console.log(updatedShifts)
+    
+                // 5. Formateamos los turnos en la estructura de employeeShifts
+                employeeShifts.push({
+                    employee: {
+                        number_document: employeeId,
+                        working_day: working_day
+                    },
+                    weeklyShifts: weeks.map((week, index) => {
+                        // Extraemos los turnos correspondientes a esta semana
+                        const startOfWeek = index * 7;
+                        const endOfWeek = startOfWeek + 7;
+                        const weekShifts = updatedShifts.slice(startOfWeek, endOfWeek);
+
+                        return {
+                            week: index + 1,
+                            shifts: weekShifts.map(shift => ({
+                                shift_date: new Date(shift.shift_date).toISOString().split('T')[0],
+                                turn: shift.turn,
+                                hours: shift.hours,
+                                break: shift.break,
+                                initial_hour: shift.initial_hour
+                            }))
+                        };
+                    })
+                });
+    
+                // 6. Validamos los turnos con generator.createShifts
+                const validatedShifts = await generator.createShifts(totalWeeks, employeeShifts);
+    
+                if (!validatedShifts.success) {
+                    return { status: 400, message: `Errores en la validación de turnos: ${JSON.stringify(validatedShifts.errors)}`} ;
+                }
+    
+                // 7. Si la validación es correcta, actualizamos solamente los turnos que se han cambiado
+                for (const shiftUpdate of updateShifts) {
+                    await pool.execute(
+                        `UPDATE Employee_Shift
+                         SET turn = ?, break = ?
+                         WHERE number_document = ? AND shift_date = ?`,
+                        [
+                            shiftUpdate.turn,
+                            shiftUpdate.break,
+                            employeeId,
+                            shiftUpdate.shift_date
+                        ]
+                    );
+                }
             }
-
-            await pool.execute(
-                'UPDATE Employee_Shift SET turn = ?, number_document = ?, shift_date = ?, break = ? WHERE id_shift_his = ?', 
-                [
-                    shiftData.turn, 
-                    shiftData.number_document, 
-                    shiftData.shift_date, 
-                    shiftData.break_time, 
-                    id_shift_his
-                ]
-            );
-
-            const updatedShift = await this.getShiftById(id_shift_his);
-            return {
-                status: 200,
-                data: updatedShift.data
-            };
+    
+            // 8. Retornamos una respuesta exitosa
+            return { status: 200, message: "Turnos actualizados correctamente" };
+    
         } catch (error) {
-            return {
-                status: 500,
-                message: `Error al actualizar el turno: ${error.message}`
-            };
+            console.error("Error actualizando turnos:", error);
+            return { status: 500, message: "Error interno del servidor", error: error.message };
         }
     }
+     
+    
 
     async deleteShift(id_shift_his) {
         try {
@@ -300,19 +380,16 @@ class EmployeeShiftController {
         }
     
         const startOfMonth = inputDate.clone().startOf('month');
-        const endOfMonth = inputDate.clone().endOf('month');
-    
-        // Encontrar el primer lunes del mes
         let firstMonday = startOfMonth.clone().startOf('isoWeek');
-        // Si el primer lunes está en el mes anterior, avanzamos una semana
+    
+        // Si el primer lunes es del mes anterior, avanzar 7 días
         if (firstMonday.isBefore(startOfMonth)) {
             firstMonday.add(7, 'days');
         }
     
         const weeks = [];
         let currentMonday = firstMonday.clone();
-
-        // Iteramos mientras estemos dentro del mes o el lunes pertenezca al mes
+    
         while (currentMonday.month() === startOfMonth.month()) {
             const weekEnd = currentMonday.clone().endOf('isoWeek');
     
@@ -324,8 +401,14 @@ class EmployeeShiftController {
             currentMonday = currentMonday.clone().add(7, 'days');
         }
     
-        return weeks;
+        return {
+            weeks,
+            totalWeeks: weeks.length,
+            startDate: weeks[0].start,
+            endDate: weeks[weeks.length - 1].end
+        };
     }
+    
 
     async getShiftsByDateRange(startDate, endDate) {
         try {

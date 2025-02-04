@@ -168,9 +168,10 @@ router.post('/generate-weeks', async (req, res) => {
     }
 });
 
-router.put('/:id', async (req, res) => {
+router.put('/', async (req, res) => {
     try {
-        const result = await shiftController.updateShift(req.params.id, req.body);
+        const {date, employees} = req.body;
+        const result = await shiftController.updateShifts(date, employees);
         return res.status(result.status).json({
             success: result.status < 400,
             message: result.message,

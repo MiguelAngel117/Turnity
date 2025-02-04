@@ -169,12 +169,14 @@ class ShiftGenerator {
         return validation;
     }
 
-    async createShifts(storeId, departmentId, positionId, numWeeks, employeeShifts) {
+    async createShifts(numWeeks, employeeShifts) {
         const response = {
             success: false,
             data: null,
             errors: [] 
         };
+
+        
 
         try {
             if (!employeeShifts || !Array.isArray(employeeShifts)) {
@@ -184,10 +186,10 @@ class ShiftGenerator {
                 });
                 return response;
             }
-
             const validatedShifts = [];
 
             for (const employeeShift of employeeShifts) {
+                console.log(employeeShifts[0].weeklyShifts[1]);
                 if (!employeeShift.employee || !employeeShift.weeklyShifts) {
                     response.errors.push({
                         field: 'employeeShift',
@@ -224,6 +226,8 @@ class ShiftGenerator {
             if (response.errors.length > 0) {
                 return response;
             }
+
+            console.log('Turnos validados:', validatedShifts);
 
             response.success = true;
             response.data = validatedShifts;
