@@ -243,8 +243,6 @@ class EmployeeShiftController {
                         });
                     }
                 });
-
-                //console.log(updatedShifts)
     
                 // 5. Formateamos los turnos en la estructura de employeeShifts
                 employeeShifts.push({
