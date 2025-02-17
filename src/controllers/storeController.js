@@ -2,10 +2,17 @@ const pool = require('../connect/connection');
 const Store = require('../models/stores');
 
 class StoreController {
-    // Obtener todas las tiendas
     async getAllStores() {
         const [stores] = await pool.execute('SELECT * FROM Stores');
-        return stores.map(store => new Store(store.id_store, store.name_store, store.hour_open_store));
+        
+        return stores.map(store => {
+            // Limpiamos el nombre si tiene el prefijo "FALABELLA - "
+            const cleanName = store.name_store?.startsWith('FALABELLA - ') 
+                ? store.name_store.substring(12)
+                : store.name_store;
+                
+            return new Store(store.id_store, cleanName, store.hour_open_store);
+        });
     }
 
     // Obtener tienda por ID

@@ -13,6 +13,16 @@ router.get('/', async (req, res) => {
     }
 });
 
+// GET: Obtener departamentos por tienda
+router.get('/store/:id_store', async (req, res) => {
+    try {
+        const departmentStores = await departmentStoreController.getDepartmentsByStore(req.params.id_store);
+        res.json(departmentStores);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // GET: Obtener departamento de tienda por ID
 router.get('/:id_store_dep', async (req, res) => {
     try {
@@ -26,15 +36,6 @@ router.get('/:id_store_dep', async (req, res) => {
     }
 });
 
-// GET: Obtener departamentos por tienda
-router.get('/store/:id_store', async (req, res) => {
-    try {
-        const departmentStores = await departmentStoreController.getDepartmentsByStore(req.params.id_store);
-        res.json(departmentStores);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
 
 // POST: Crear departamento de tienda
 router.post('/', async (req, res) => {

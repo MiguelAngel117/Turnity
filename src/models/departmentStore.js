@@ -1,8 +1,9 @@
 class DepartmentStore {
-    constructor(id_store_dep, id_store, id_department) {
+    constructor(id_store_dep, id_store, id_department, name_department = null) {
         this.id_store_dep = id_store_dep;
         this.id_store = id_store;
         this.id_department = id_department;
+        this.name_department = name_department;
     }
 
     validate() {

@@ -75,19 +75,31 @@ class DepartmentStoreController {
         return true;
     }
 
-    // Obtener departamentos por tienda
+    // Función para obtener departamentos por tienda
     async getDepartmentsByStore(id_store) {
+        // Consulta simple sin modificar el nombre
         const [departmentStores] = await pool.execute(
             `SELECT ds.*, d.name_department 
-             FROM Department_Store ds
-             JOIN Departments d ON ds.id_department = d.id_department
-             WHERE ds.id_store = ?`, 
+            FROM Department_Store ds
+            JOIN Departments d ON ds.id_department = d.id_department
+            WHERE ds.id_store = ?`, 
             [id_store]
         );
         
-        return departmentStores.map(ds => 
-            new DepartmentStore(ds.id_store_dep, ds.id_store, ds.id_department)
-        );
+        // Hacemos la transformación en JavaScript
+        return departmentStores.map(ds => {
+            // Limpiamos el nombre si es necesario
+            const cleanName = ds.name_department?.startsWith('TDA-') 
+                ? ds.name_department.substring(4) 
+                : ds.name_department;
+                
+            return new DepartmentStore(
+                ds.id_store_dep, 
+                ds.id_store, 
+                ds.id_department, 
+                cleanName
+            );
+        });
     }
 }
 
