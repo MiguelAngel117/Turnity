@@ -58,7 +58,7 @@ class EmployeeDepartmentController {
     // Obtener personas por sucursal y departamento
     async getByStoreAndDepartment(storeId, departmentId) {
         const [rows] = await pool.query(`
-            SELECT ed.*, e.full_name, p.name_position, 
+            SELECT ed.*, e.full_name, e.working_day, p.name_position, 
                    d.name_department, s.name_store
             FROM Employees_Department ed
             JOIN Employees e ON e.number_document = ed.number_document
@@ -74,7 +74,8 @@ class EmployeeDepartmentController {
     // Obtener personas por sucursal, departamento y cargo
     async getByStoreDepartmentAndPosition(storeId, departmentId, positionId) {
         const [rows] = await pool.query(`
-            SELECT ed.*, e.full_name, e.working_day, p.name_position, 
+            SELECT ed.*, e.full_
+            name, e.working_day, p.name_position, 
                    d.name_department, s.name_store
             FROM Employees_Department ed
             JOIN Employees e ON e.number_document = ed.number_document
