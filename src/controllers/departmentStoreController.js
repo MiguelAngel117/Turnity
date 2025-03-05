@@ -14,7 +14,7 @@ class DepartmentStoreController {
         `);
         
         return departmentStores.map(ds => 
-            new DepartmentStore(ds.id_store_dep, ds.id_store, ds.id_department)
+            new DepartmentStore(ds.id_store_dep, ds.id_store, ds.id_department, ds.min_opening, ds.max_opening, ds.min_closing, ds.max_closing)
         );
     }
 
@@ -34,7 +34,7 @@ class DepartmentStoreController {
         if (departmentStores.length === 0) return null;
         
         const ds = departmentStores[0];
-        return new DepartmentStore(ds.id_store_dep, ds.id_store, ds.id_department);
+        return new DepartmentStore(ds.id_store_dep, ds.id_store, ds.id_department, ds.min_opening, ds.max_opening, ds.min_closing, ds.max_closing);
     }
 
     // Crear departamento de tienda
@@ -42,7 +42,11 @@ class DepartmentStoreController {
         const departmentStore = new DepartmentStore(
             departmentStoreData.id_store_dep,
             departmentStoreData.id_store, 
-            departmentStoreData.id_department
+            departmentStoreData.id_department,
+            departmentStoreData.min_opening,
+            departmentStoreData.max_opening,
+            departmentStoreData.min_closing,
+            departmentStoreData.max_closing
         );
 
         const validationErrors = departmentStore.validate();
@@ -51,8 +55,8 @@ class DepartmentStoreController {
         }
 
         const [result] = await pool.execute(
-            'INSERT INTO Department_Store (id_store, id_department) VALUES (?, ?)', 
-            [departmentStore.id_store, departmentStore.id_department]
+            'INSERT INTO Department_Store (id_store, id_department, min_opening, max_opening, min_closing, max_closing) VALUES (?, ?, ?, ?, ?, ?)', 
+            [departmentStore.id_store, departmentStore.id_department, departmentStore.min_opening, departmentStore.max_opening, departmentStore.min_closing, departmentStore.max_closing]
         );
 
         departmentStore.id_store_dep = result.insertId;
@@ -62,8 +66,8 @@ class DepartmentStoreController {
     // Actualizar departamento de tienda
     async updateDepartmentStore(id_store_dep, departmentStoreData) {
         await pool.execute(
-            'UPDATE Department_Store SET id_store = ?, id_department = ? WHERE id_store_dep = ?', 
-            [departmentStoreData.id_store, departmentStoreData.id_department, id_store_dep]
+            'UPDATE Department_Store SET id_store = ?, id_department = ?, min_opening = ?, max_opening = ?, min_closing = ?, max_closing = ? WHERE id_store_dep = ?', 
+            [departmentStoreData.id_store, departmentStoreData.id_department, departmentStoreData.min_opening, departmentStoreData.max_opening, departmentStoreData.min_closing, departmentStoreData.max_closing, id_store_dep]
         );
 
         return this.getDepartmentStoreById(id_store_dep);
@@ -77,7 +81,6 @@ class DepartmentStoreController {
 
     // Función para obtener departamentos por tienda
     async getDepartmentsByStore(id_store) {
-        // Consulta simple sin modificar el nombre
         const [departmentStores] = await pool.execute(
             `SELECT ds.*, d.name_department 
             FROM Department_Store ds
@@ -93,12 +96,13 @@ class DepartmentStoreController {
                 ? ds.name_department.substring(4) 
                 : ds.name_department;
                 
-            return new DepartmentStore(
-                ds.id_store_dep, 
-                ds.id_store, 
-                ds.id_department, 
-                cleanName
-            );
+            return {
+                id_store_dep: ds.id_store_dep,
+                id_store: ds.id_store,
+                id_department: ds.id_department,
+                name_department: cleanName
+            };
+                
         });
     }
 }

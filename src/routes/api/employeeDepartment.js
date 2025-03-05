@@ -3,6 +3,20 @@ const router = express.Router();
 const EmployeeDepartmentController = require('../../controllers/employeeDepController');
 const controller = new EmployeeDepartmentController();
 
+router.post('/', async (req, res) => {
+    try {
+        const employees = req.body; // Recibir el array de empleados desde el request
+        if (!Array.isArray(employees) || employees.length === 0) {
+            return res.status(400).json({ error: "Se requiere un array de empleados válido" });
+        }
+
+        const result = await controller.addEmployeesToDepartment(employees);
+        res.status(201).json(result);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 router.get('/', async (req, res) => {
     try {
         const results = await controller.getAll();

@@ -26,11 +26,11 @@ class EmployeeController {
             `);
             
             const [positions] = await connection.query('SELECT id_position, name_position FROM Positions');
-
+         
             for (const data of employeesData) {
                 try {
                     if (!data.Cod_Sucursal || !data.Num_Documento || !data.NombreEmpleado || 
-                        !data.Cod_Cargo || !data.Cod_Depto || !data.jornada) {
+                        !data.Cod_Cargo || !data.Cod_Depto) {
                         throw new Error('Faltan campos requeridos');
                     }
 
@@ -42,6 +42,7 @@ class EmployeeController {
                     if (existingDocuments.includes(numberDocument)) {
                         throw new Error('El empleado ya existe');
                     }
+                    
 
                     const storeDepRelation = deptStores.find(
                         ds => ds.id_store === parseInt(data.Cod_Sucursal) && 
@@ -72,29 +73,33 @@ class EmployeeController {
                         numberDocument,
                         numDocManager,
                         data.NombreEmpleado.trim(),
-                        parseInt(data.jornada)
                     );
 
                     await connection.query(
                         `INSERT INTO Employees 
-                        (number_document, num_doc_manager, full_name, working_day) 
-                        VALUES (?, ?, ?, ?)`,
-                        [
-                            employee.number_document,
-                            employee.num_doc_manager,
-                            employee.full_name,
-                            employee.working_day
-                        ]
-                    );
-
-                    await connection.query(
-                        `INSERT INTO Employees_Department 
-                        (number_document, id_store_dep, id_position) 
+                        (number_document, num_doc_manager, full_name) 
                         VALUES (?, ?, ?)`,
                         [
                             employee.number_document,
+                            employee.num_doc_manager,
+                            employee.full_name
+                        ]
+                    );
+
+                    const workingDay = parseInt(data.jornada);
+
+                    
+
+                    await connection.query(
+                        `INSERT INTO Employees_Department 
+                        (number_document, id_store_dep, id_position, working_day, contract_date) 
+                        VALUES (?, ?, ?, ?, ?)`,
+                        [
+                            employee.number_document,
                             storeDepRelation.id_store_dep,
-                            position.id_position
+                            position.id_position,
+                            workingDay,
+                            new Date()
                         ]
                     );
 
@@ -120,7 +125,8 @@ class EmployeeController {
                             document: data.Num_Documento,
                             name: data.NombreEmpleado,
                             store: data.Sucursal,
-                            department: data.Departamento
+                            department: data.Departamento,
+                            working_day: data.jornada
                         },
                         error: error.message
                     });
@@ -153,7 +159,6 @@ class EmployeeController {
             SELECT 
                 e1.number_document AS employee_document, 
                 e1.full_name AS employee_name,  
-                e1.working_day AS working_day,
                 e1.num_doc_manager AS manager_document,  
                 e2.full_name AS manager_name
             FROM 
@@ -168,7 +173,6 @@ class EmployeeController {
         return employees.map(emp => ({
             employee_document: emp.employee_document,
             employee_name: emp.employee_name,
-            working_day: emp.working_day,
             manager_document: emp.manager_document,
             manager_name: emp.manager_name || null, // Nombre del jefe (null si no tiene)
         }));
@@ -181,7 +185,6 @@ async getEmployeeByDocument(number_document) {
         SELECT 
             e1.number_document AS employee_document, 
             e1.full_name AS employee_name,  
-            e1.working_day AS working_day,
             e1.num_doc_manager AS manager_document,  
             e2.full_name AS manager_name
         FROM 
@@ -201,9 +204,8 @@ async getEmployeeByDocument(number_document) {
     return {
         employee_document: emp.employee_document,
         employee_name: emp.employee_name,
-        working_day: emp.working_day,
         manager_document: emp.manager_document,
-        manager_name: emp.manager_name || null, // Nombre del jefe (null si no tiene)
+        manager_name: emp.manager_name || null, 
     };
 }
 
@@ -212,8 +214,7 @@ async getEmployeeByDocument(number_document) {
         const employee = new Employee(
             employeeData.number_document,
             employeeData.num_doc_manager,
-            employeeData.full_name,
-            employeeData.working_day
+            employeeData.full_name
         );
 
         const validationErrors = employee.validate();
@@ -223,13 +224,12 @@ async getEmployeeByDocument(number_document) {
 
         await pool.execute(
             `INSERT INTO Employees 
-            (number_document, num_doc_manager, full_name, working_day) 
-            VALUES (?, ?, ?, ?, ?)`, 
+            (number_document, num_doc_manager, full_name) 
+            VALUES (?, ?, ?)`, 
             [
                 employee.number_document, 
                 employee.num_doc_manager, 
-                employee.full_name,  
-                employee.working_day
+                employee.full_name
             ]
         );
 
@@ -242,13 +242,11 @@ async getEmployeeByDocument(number_document) {
             `UPDATE Employees 
             SET 
                 num_doc_manager = ?, 
-                full_name = ?, 
-                working_day = ? 
+                full_name = ?
             WHERE number_document = ?`, 
             [
                 employeeData.num_doc_manager, 
                 employeeData.full_name, 
-                employeeData.working_day,
                 number_document
             ]
         );
@@ -275,8 +273,7 @@ async getEmployeeByDocument(number_document) {
         return employees.map(emp => new Employee(
             emp.number_document, 
             emp.num_doc_manager, 
-            emp.full_name, 
-            emp.working_day
+            emp.full_name
         ));
     }
 }

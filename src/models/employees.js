@@ -2,13 +2,11 @@ class Employee {
     constructor(
         number_document, 
         num_doc_manager, 
-        full_name, 
-        working_day
+        full_name
     ) {
         this.number_document = number_document;
         this.num_doc_manager = num_doc_manager || null;
         this.full_name = full_name;
-        this.working_day = working_day || null;
     }
 
     // Método para validar datos
