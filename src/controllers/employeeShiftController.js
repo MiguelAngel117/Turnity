@@ -96,7 +96,8 @@ class EmployeeShiftController {
     
             return {
                 status: 201,
-                data: validatedShifts.data
+                data: validatedShifts.data,
+                message: 'Turnos generados correctamente'
             };
         } catch (error) {
             console.error('Error en el controlador de generación de turnos:', error);
@@ -515,6 +516,151 @@ class EmployeeShiftController {
         } catch (error) {
             console.error("Error al obtener los turnos:", error);
             return { status: 500, message: `Error al obtener los turnos: ${error.message}` };
+        }
+    }
+
+    async getShiftsByEmployeeList(employees, startDate, endDate) {
+        try {
+            // Validate input parameters
+            if (!employees || !Array.isArray(employees) || employees.length === 0) {
+                return {
+                    status: 400,
+                    message: 'La lista de cédulas de empleados es requerida'
+                };
+            }
+    
+            if (!startDate || !endDate) {
+                return {
+                    status: 400,
+                    message: 'Las fechas de inicio y fin son requeridas'
+                };
+            }
+    
+            // Convert dates to proper format if they aren't already
+            const formattedStartDate = moment(startDate, 'YYYY-MM-DD').format('YYYY-MM-DD');
+            const formattedEndDate = moment(endDate, 'YYYY-MM-DD').format('YYYY-MM-DD');
+    
+            if (!moment(formattedStartDate, 'YYYY-MM-DD', true).isValid() || 
+                !moment(formattedEndDate, 'YYYY-MM-DD', true).isValid()) {
+                return {
+                    status: 400,
+                    message: 'Formato de fecha inválido. Use YYYY-MM-DD'
+                };
+            }
+    
+            // Format the employee IDs for the IN clause
+            const employeeIds = employees.join(',');
+            
+            // First, get employee information for all requested employees
+            const [employeeInfo] = await pool.execute(`
+                SELECT e.number_document, e.full_name, e.num_doc_manager, 
+                       m.full_name AS manager_name,
+                       ed.working_day,
+                       st.id_store, st.name_store,
+                       d.id_department, d.name_department,
+                       p.id_position, p.name_position
+                FROM Employees e
+                LEFT JOIN Employees m ON e.num_doc_manager = m.number_document
+                LEFT JOIN Employees_Department ed ON e.number_document = ed.number_document
+                LEFT JOIN Department_Store ds ON ed.id_store_dep = ds.id_store_dep
+                LEFT JOIN Stores st ON ds.id_store = st.id_store
+                LEFT JOIN Departments d ON ds.id_department = d.id_department
+                LEFT JOIN Positions p ON ed.id_position = p.id_position
+                WHERE e.number_document IN (${employeeIds})
+            `);
+            
+            if (employeeInfo.length === 0) {
+                return {
+                    status: 404,
+                    message: 'No se encontraron los empleados especificados',
+                    data: []
+                };
+            }
+            
+            // Create a map of employees to their info
+            const employeeShifts = {};
+            
+            // Initialize the structure for all employees
+            employeeInfo.forEach(emp => {
+                employeeShifts[emp.number_document] = {
+                    employee: {
+                        number_document: emp.number_document,
+                        full_name: emp.full_name,
+                        working_day: emp.working_day,
+                        store: {
+                            id_store: emp.id_store,
+                            name_store: emp.name_store
+                        },
+                        department: {
+                            id_department: emp.id_department,
+                            name_department: emp.name_department
+                        },
+                        position: {
+                            id_position: emp.id_position,
+                            name_position: emp.name_position
+                        }
+                    },
+                    shifts: null // Initialize shifts as null for all employees
+                };
+            });
+            
+            // Get shifts for employees that have them in the date range
+            const [shifts] = await pool.execute(`
+                SELECT es.id_shift_his, es.number_document, es.turn, es.shift_date, es.break,
+                       s.hours, s.initial_hour, s.end_hour
+                FROM Employee_Shift es
+                JOIN Shifts s ON es.turn = s.code_shift
+                WHERE es.number_document IN (${employeeIds})
+                AND es.shift_date BETWEEN ? AND ?
+                ORDER BY es.number_document, es.shift_date
+            `, [formattedStartDate, formattedEndDate]);
+            
+            // Process shift data if any shifts exist
+            if (shifts.length > 0) {
+                const isSpecialDay = (codigoTurno) => this.listSpecialDays.includes(codigoTurno);
+                
+                // Group shifts by employee
+                shifts.forEach(shift => {
+                    const employeeId = shift.number_document;
+                    
+                    // If this is the first shift for this employee, initialize the shifts array
+                    if (employeeShifts[employeeId].shifts === null) {
+                        employeeShifts[employeeId].shifts = [];
+                    }
+                    
+                    const codigoTurno = shift.turn;
+                    const specialDay = isSpecialDay(codigoTurno);
+                    const finalHours = (employeeShifts[employeeId].employee.working_day === 36 && 
+                                        specialDay && 
+                                        shift.hours != 0) ? 6 : shift.hours;
+                    
+                    employeeShifts[employeeId].shifts.push({
+                        id_shift_his: shift.id_shift_his,
+                        shift_date: shift.shift_date.toISOString().split('T')[0],
+                        turn: codigoTurno,
+                        is_special_day: specialDay,
+                        hours: finalHours,
+                        initial_hour: shift.initial_hour,
+                        end_hour: shift.end_hour,
+                        break: shift.break
+                    });
+                });
+            }
+            
+            // Convert to array format for response
+            const result = Object.values(employeeShifts);
+            
+            return {
+                status: 200,
+                data: result
+            };
+            
+        } catch (error) {
+            console.error("Error al obtener los turnos por lista de empleados:", error);
+            return {
+                status: 500,
+                message: `Error al obtener los turnos: ${error.message}`
+            };
         }
     }
      

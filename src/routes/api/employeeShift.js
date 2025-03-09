@@ -14,16 +14,16 @@ router.post('/create', async (req, res) => {
             employeeShifts 
         } = req.body;
 
-        // Validaciones básicas
+        // Validaciones básicas (mantener las mismas)
         if (!storeId || !departmentId || !positionId || !startDate || !employeeShifts) {
             return res.status(400).json({ 
                 success: false,
-                message: 'Todos los campos son requeridos: storeId, departmentId, positionId, startDate, employeeShifts',
+                message: 'Todos los campos son requeridos',
                 data: null
             });
         }
 
-        // Validar formato de fecha
+        // Validar formato de fecha (mantener igual)
         const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
         if (!dateRegex.test(startDate)) {
             return res.status(400).json({
@@ -42,10 +42,10 @@ router.post('/create', async (req, res) => {
             employeeShifts
         );
 
-        return res.status(result.status).json({
-            success: result.status < 400,
+        return res.status(result.status || (result.success ? 201 : 400)).json({
+            success: result.success,
             message: result.message,
-            data: result.data
+            errors: result.errors
         });
 
     } catch (error) {
@@ -56,6 +56,14 @@ router.post('/create', async (req, res) => {
             data: null
         });
     }
+});
+
+router.get('/by-employee-list', async (req, res) => {
+    const { employees, startDate, endDate } = req.body;
+    
+    const result = await shiftController.getShiftsByEmployeeList(employees, startDate, endDate);
+    
+    return res.status(result.status).json(result);
 });
 
 
