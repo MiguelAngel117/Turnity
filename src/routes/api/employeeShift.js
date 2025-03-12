@@ -7,15 +7,13 @@ router.post('/create', async (req, res) => {
     try {
         const { 
             storeId, 
-            departmentId, 
-            positionId, 
-            startDate,
+            departmentId,
             numWeeks,
             employeeShifts 
         } = req.body;
 
         // Validaciones básicas (mantener las mismas)
-        if (!storeId || !departmentId || !positionId || !startDate || !employeeShifts) {
+        if (!storeId || !departmentId || !employeeShifts) {
             return res.status(400).json({ 
                 success: false,
                 message: 'Todos los campos son requeridos',
@@ -23,21 +21,9 @@ router.post('/create', async (req, res) => {
             });
         }
 
-        // Validar formato de fecha (mantener igual)
-        const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-        if (!dateRegex.test(startDate)) {
-            return res.status(400).json({
-                success: false,
-                message: 'El formato de fecha debe ser YYYY-MM-DD',
-                data: null
-            });
-        }
-
         const result = await shiftController.generateShifts(
             storeId,
             departmentId,
-            positionId,
-            startDate,
             numWeeks,
             employeeShifts
         );
@@ -58,12 +44,15 @@ router.post('/create', async (req, res) => {
     }
 });
 
-router.get('/by-employee-list', async (req, res) => {
-    const { employees, startDate, endDate } = req.body;
-    
-    const result = await shiftController.getShiftsByEmployeeList(employees, startDate, endDate);
-    
-    return res.status(result.status).json(result);
+router.post('/by-employee-list', async (req, res) => {
+    try {
+        const { employees, startDate, endDate, numWeeks } = req.body;
+        const result = await shiftController.getShiftsByEmployeeList(employees, startDate, endDate, numWeeks);
+        return res.status(200).json(result);
+
+    } catch (error) {
+        return res.status(500).json({ message: result.message });
+    }
 });
 
 
