@@ -231,119 +231,7 @@ class EmployeeShiftController {
             };
         }
     }
-
-    async updateShifts(date, employees) { 
-        try {
-            // 1. Generamos las semanas del mes a partir de la fecha proporcionada
-            const { weeks, totalWeeks, startDate, endDate } = await this.generateWeeksPerMonth(date);
-            let employeeShifts = [];
-            const numWeeks = weeks.length;
-            
-            // 2. Iteramos sobre cada empleado y sus turnos a actualizar
-            for (const employee of employees) {
-                const { employeeId, working_day, updateShifts } = employee;
-        
-                // 3. Obtenemos los turnos actuales del empleado en el rango de fechas
-                const [currentShifts] = await pool.execute(
-                    `SELECT es.shift_date, es.turn, es.break, s.hours, s.initial_hour 
-                    FROM Employee_Shift es
-                    JOIN Shifts s ON es.turn = s.code_shift
-                    WHERE es.number_document = ? 
-                    AND es.shift_date BETWEEN ? AND ?`,
-                    [employeeId, startDate, endDate]
-                );
     
-                // 4. Creamos una copia de los turnos actuales y actualizamos los turnos correspondientes
-                const updatedShifts = [...currentShifts];  // Crea una copia de los turnos actuales
-    
-                updateShifts.forEach(update => {
-                    //Se deben meter de a 7 dias por cada semana no todos los dias
-                    const shiftIndex = updatedShifts.findIndex(shift => {
-                        // Formateamos ambas fechas para comparar solo año, mes y día
-                        const shiftDate = new Date(shift.shift_date).toISOString().split('T')[0]; // 2025-01-06
-                        const updateDate = update.shift_date;
-                        return shiftDate === updateDate;
-                    });
-                    if (shiftIndex !== -1) {
-                        // Actualizamos el turno existente con los nuevos datos
-                        updatedShifts[shiftIndex] = {
-                            ...updatedShifts[shiftIndex],
-                            turn: update.turn,
-                            break: update.break,
-                            hours: update.hours,
-                            initial_hour: update.initial_hour
-                        };
-                    } else {
-                        // Si no encontramos el turno, agregamos el nuevo turno
-                        updatedShifts.push({
-                            shift_date: update.shift_date,
-                            turn: update.turn,
-                            break: update.break,
-                            hours: update.hours,
-                            initial_hour: update.initial_hour
-                        });
-                    }
-                });
-    
-                // 5. Formateamos los turnos en la estructura de employeeShifts
-                employeeShifts.push({
-                    employee: {
-                        number_document: employeeId,
-                        working_day: working_day
-                    },
-                    weeklyShifts: weeks.map((week, index) => {
-                        // Extraemos los turnos correspondientes a esta semana
-                        const startOfWeek = index * 7;
-                        const endOfWeek = startOfWeek + 7;
-                        const weekShifts = updatedShifts.slice(startOfWeek, endOfWeek);
-
-                        return {
-                            week: index + 1,
-                            shifts: weekShifts.map(shift => ({
-                                shift_date: new Date(shift.shift_date).toISOString().split('T')[0],
-                                turn: shift.turn,
-                                hours: shift.hours,
-                                break: shift.break,
-                                initial_hour: shift.initial_hour
-                            }))
-                        };
-                    })
-                });
-    
-                // 6. Validamos los turnos con generator.createShifts
-                const validatedShifts = await generator.createShifts(totalWeeks, employeeShifts);
-    
-                if (!validatedShifts.success) {
-                    return { status: 400, message: `Errores en la validación de turnos: ${JSON.stringify(validatedShifts.errors)}`} ;
-                }
-    
-                // 7. Si la validación es correcta, actualizamos solamente los turnos que se han cambiado
-                for (const shiftUpdate of updateShifts) {
-                    await pool.execute(
-                        `UPDATE Employee_Shift
-                         SET turn = ?, break = ?
-                         WHERE number_document = ? AND shift_date = ?`,
-                        [
-                            shiftUpdate.turn,
-                            shiftUpdate.break,
-                            employeeId,
-                            shiftUpdate.shift_date
-                        ]
-                    );
-                }
-            }
-    
-            // 8. Retornamos una respuesta exitosa
-            return { status: 200, message: "Turnos actualizados correctamente" };
-    
-        } catch (error) {
-            console.error("Error actualizando turnos:", error);
-            return { status: 500, message: "Error interno del servidor", error: error.message };
-        }
-    }
-     
-    
-
     async deleteShift(id_shift_his) {
         try {
             const shiftExists = await this.getShiftById(id_shift_his);
@@ -581,13 +469,17 @@ class EmployeeShiftController {
             const formattedEndDate = moment(endDate).format('YYYY-MM-DD');
             const employeeIds = employees.join(',');
             
-            // Obtener información básica de los empleados
+            // Obtener información básica de los empleados - Corregida la consulta SQL
             const [employeeInfo] = await pool.execute(`
-                SELECT e.number_document, e.full_name, ed.working_day, p.name_position
+                SELECT e.number_document, e.full_name, p.name_position,
+                      (SELECT ed.working_day FROM Employees_Department ed 
+                       WHERE ed.number_document = e.number_document 
+                       ORDER BY ed.contract_date DESC, ed.id_employee_dep DESC LIMIT 1) AS latest_working_day
                 FROM Employees e
                 JOIN Employees_Department ed ON e.number_document = ed.number_document
                 JOIN positions p ON ed.id_position = p.id_position
                 WHERE e.number_document IN (${employeeIds})
+                GROUP BY e.number_document, e.full_name, p.name_position
             `);
             
             if (employeeInfo.length === 0) {
@@ -607,7 +499,7 @@ class EmployeeShiftController {
                     employee: {
                         name: emp.full_name,
                         number_document: emp.number_document,
-                        working_day: emp.working_day,
+                        working_day: emp.latest_working_day, // Usamos la jornada más reciente
                         position: emp.name_position
                     },
                     weeklyShifts: []
@@ -635,12 +527,12 @@ class EmployeeShiftController {
                 currentWeekStart.add(7, 'days');
             }
             
-            // Obtener la jornada laboral de cada semana para cada empleado
+            // Obtener TODAS las jornadas laborales para cada empleado
             const [weeklyWorkingDays] = await pool.execute(`
                 SELECT ed.number_document, ed.working_day, ed.contract_date
                 FROM Employees_Department ed
                 WHERE ed.number_document IN (${employeeIds})
-                ORDER BY ed.contract_date DESC
+                ORDER BY ed.number_document, ed.contract_date
             `);
             
             // Organizar los turnos por empleado y semana
@@ -675,8 +567,8 @@ class EmployeeShiftController {
                 }
                 
                 // Determinar las horas correctas según las reglas de jornada especial
-                const isSpecialDay = this.listSpecialDays.includes(shift.turn);
-                const currentEmployeeWorkingDay = employeeData[employeeId].employee.working_day;
+                const isSpecialDay = this.listSpecialDays && this.listSpecialDays.includes(shift.turn);
+                const currentEmployeeWorkingDay = employeeData[employeeId]?.employee?.working_day;
                 const finalHours = (currentEmployeeWorkingDay === 36 && 
                                     isSpecialDay && 
                                     shift.hours != 0) ? 6 : shift.hours;
@@ -691,33 +583,55 @@ class EmployeeShiftController {
                 });
             });
             
+            // Agrupar las jornadas por empleado para un acceso más fácil
+            const workingDaysByEmployee = {};
+            weeklyWorkingDays.forEach(wd => {
+                const employeeId = wd.number_document.toString();
+                if (!workingDaysByEmployee[employeeId]) {
+                    workingDaysByEmployee[employeeId] = [];
+                }
+                workingDaysByEmployee[employeeId].push({
+                    working_day: wd.working_day,
+                    contract_date: moment(wd.contract_date).format('YYYY-MM-DD')
+                });
+            });
+            
             // Construir la estructura de respuesta final
             Object.keys(employeeData).forEach(employeeId => {
-                // Obtener la jornada de cada semana para este empleado
-                const workingDaysForEmployee = weeklyWorkingDays.filter(
-                    wd => wd.number_document.toString() === employeeId
-                );
-                
-                // Ordenar por fecha de contrato descendente para tener la más reciente primero
-                workingDaysForEmployee.sort((a, b) => 
-                    moment(b.contract_date).valueOf() - moment(a.contract_date).valueOf()
-                );
+                // Obtener las jornadas para este empleado
+                const workingDaysForEmployee = workingDaysByEmployee[employeeId] || [];
                 
                 // Para cada semana, añadir los turnos correspondientes
                 for (let weekNum = 1; weekNum <= numWeeks; weekNum++) {
                     const weekStartDate = weekStartDates[weekNum - 1];
                     
                     // Encontrar la jornada válida para esta semana
-                    const applicableWorkingDay = workingDaysForEmployee.find(wd => 
-                        moment(wd.contract_date).format('YYYY-MM-DD') <= weekStartDate
-                    ) || workingDaysForEmployee[0]; // Usar la más reciente si no hay anterior
+                    // Buscamos la jornada cuya fecha de contrato sea la más reciente
+                    // pero que no sea posterior al inicio de la semana
+                    let applicableWorkingDay = null;
+                    let maxDate = null;
                     
-                    const workingDayForWeek = applicableWorkingDay ? applicableWorkingDay.working_day : 
-                        employeeData[employeeId].employee.working_day;
+                    for (const wd of workingDaysForEmployee) {
+                        const contractDate = wd.contract_date;
+                        // Solo consideramos fechas que no sean posteriores al inicio de la semana
+                        if (contractDate <= weekStartDate) {
+                            // Si no tenemos una fecha aún, o si esta es más reciente que la actual
+                            if (maxDate === null || contractDate > maxDate) {
+                                maxDate = contractDate;
+                                applicableWorkingDay = wd;
+                            }
+                        }
+                    }
+                    
+                    // Si no encontramos una jornada aplicable, usamos la jornada por defecto
+                    const workingDayForWeek = applicableWorkingDay ? 
+                        applicableWorkingDay.working_day : 
+                        employeeData[employeeId]?.employee?.working_day;
                     
                     const weeklyShift = {
                         week: weekNum,
                         working_day: workingDayForWeek,
+                        week_start_date: weekStartDate,
                         shifts: shiftsByEmployee[employeeId] && 
                                 shiftsByEmployee[employeeId][weekNum] ? 
                                 shiftsByEmployee[employeeId][weekNum].shifts : []
@@ -728,11 +642,15 @@ class EmployeeShiftController {
             });
             
             return {
-                employeeShifts: Object.values(employeeData)}
+                employeeShifts: Object.values(employeeData)
+            };
             
         } catch (error) {
             console.error("Error al obtener los turnos por lista de empleados:", error);
-            return `Error al obtener los turnos: ${error.message}`;
+            return {
+                status: 500,
+                message: `Error al obtener los turnos: ${error.message}`
+            };
         }
     }
      

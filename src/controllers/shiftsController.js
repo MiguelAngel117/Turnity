@@ -92,7 +92,7 @@ class ShiftController {
     async getFilteredShifts() {
         // Definir los códigos de turnos especiales que siempre se deben incluir
         const specialShifts = [
-            "4","5","6","7","8","9","10", "DESCANSO - X", "CUMPLEAÑOS", "VACACIONES", "INCAPACIDAD", 
+            "4","5","6","7","8","9","10", "CUMPLEAÑOS", "VACACIONES", "INCAPACIDAD", 
             "JURADO VOT", "DIA_FAMILIA", "LICENCIA", "DIA_DISFRUTE"
         ];
         return specialShifts;
