@@ -31,6 +31,7 @@ router.post('/create', async (req, res) => {
         return res.status(result.status || (result.success ? 201 : 400)).json({
             success: result.success,
             message: result.message,
+            results: result.results,
             errors: result.errors
         });
 

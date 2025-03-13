@@ -74,7 +74,7 @@ class ShiftController {
             [hours]
         );
     
-        return shifts.map(shift => new Shift(shift.code_shift, shift.hours, shift.initial_hour));
+        return shifts.map(shift => new Shift(shift.code_shift, shift.hours, shift.initial_hour, shift.end_hour));
     }
 
     // Eliminar turno

@@ -73,35 +73,47 @@ class EmployeeShiftController {
                     message: `Errores en la validación de turnos: ${JSON.stringify(validatedShifts.errors)}`
                 };
             }
-            
-            // Resultados para rastrear operaciones
             const results = {
                 created: 0,
-                updated: 0
+                updated: 0,
+                skipped: 0
             };
-            
+
             for (const shiftData of validatedShifts.data) {
                 for (const shift of shiftData.shifts) {
                     const shiftValidation = await this.validateOrFindShift(shift);
                     if (shiftValidation.status !== 200) {
                         return shiftValidation;
                     }
+                    
                     // Verificar si el turno ya existe para este empleado en esta fecha
                     const [existingShifts] = await pool.execute(
-                        `SELECT id_shift_his FROM Employee_Shift 
+                        `SELECT id_shift_his, turn, break FROM Employee_Shift 
                          WHERE number_document = ? AND shift_date = ?`,
                         [shiftData.employeeId, shift.shift_date]
                     );
                     
+                    const breakValue = shift.break || '00:00:00';
+                    
                     if (existingShifts.length > 0) {
-                        // Actualizar el turno existente
+                        const existingShift = existingShifts[0];
+                        
+                        // Verificar si hay cambios reales antes de actualizar
+                        if (existingShift.turn === shiftValidation.data && 
+                            existingShift.break === breakValue) {
+                            // No hay cambios, omitir la actualización
+                            results.skipped++;
+                            continue;
+                        }
+                        
+                        // Actualizar el turno existente solo si hay cambios
                         await pool.execute(
                             `UPDATE Employee_Shift 
                              SET turn = ?, break = ? 
                              WHERE number_document = ? AND shift_date = ?`,
                             [
                                 shiftValidation.data,
-                                shift.break || '00:00:00',
+                                breakValue,
                                 shiftData.employeeId,
                                 shift.shift_date
                             ]
@@ -116,7 +128,7 @@ class EmployeeShiftController {
                                 shiftValidation.data,
                                 shiftData.employeeId,
                                 shift.shift_date,
-                                shift.break || '00:00:00'
+                                breakValue
                             ]
                         );
                         results.created++;
@@ -128,19 +140,9 @@ class EmployeeShiftController {
                 status: 201,
                 data: validatedShifts.data,
                 results: results,
-                message: `Turnos procesados correctamente: ${results.created} creados, ${results.updated} actualizados`
+                message: `Turnos procesados correctamente: ${results.created} creados, ${results.updated} actualizados, ${results.skipped} sin cambios`
             };
         } catch (error) {
-            console.error('Error en el controlador de generación de turnos:', error);
-            
-            // Verificar si es un error de restricción de clave única
-            if (error.code === 'ER_DUP_ENTRY') {
-                return {
-                    status: 400,
-                    message: 'Ya existe un turno asignado para ese empleado en esa fecha'
-                };
-            }
-            
             return {
                 status: 500,
                 message: 'Error al validar o almacenar los turnos: ' + error.message
@@ -509,7 +511,7 @@ class EmployeeShiftController {
             // Obtener turnos para los empleados en el rango de fechas
             const [shifts] = await pool.execute(`
                 SELECT es.number_document, es.turn, es.shift_date, es.break,
-                       s.hours, s.initial_hour
+                       s.hours, s.initial_hour, s.end_hour
                 FROM Employee_Shift es
                 JOIN Shifts s ON es.turn = s.code_shift
                 WHERE es.number_document IN (${employeeIds})
@@ -579,7 +581,8 @@ class EmployeeShiftController {
                     turn: shift.turn,
                     hours: finalHours,
                     break: shift.break,
-                    initial_hour: shift.initial_hour
+                    initial_hour: shift.initial_hour,
+                    end_hour: shift.end_hour
                 });
             });
             
