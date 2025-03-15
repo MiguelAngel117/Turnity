@@ -58,7 +58,11 @@ class EmployeeShiftController {
             if (!employeeShifts || !Array.isArray(employeeShifts)) {
                 return {
                     status: 400,
-                    message: 'employeeShifts debe ser un array válido'
+                    errors: [{
+                        id_employee: 'general',
+                        message: 'employeeShifts debe ser un array válido',
+                        type: 'error'
+                    }]
                 };
             }
             
@@ -70,9 +74,10 @@ class EmployeeShiftController {
             if (!validatedShifts.success) {
                 return {
                     status: 400,
-                    message: `Errores en la validación de turnos: ${JSON.stringify(validatedShifts.errors)}`
+                    errors: validatedShifts.errors
                 };
             }
+            
             const results = {
                 created: 0,
                 updated: 0,
@@ -83,7 +88,12 @@ class EmployeeShiftController {
                 for (const shift of shiftData.shifts) {
                     const shiftValidation = await this.validateOrFindShift(shift);
                     if (shiftValidation.status !== 200) {
-                        return shiftValidation;
+                        processingErrors.push({
+                            id_employee: shiftData.employeeId,
+                            message: shiftValidation.message || 'Error validando turno',
+                            type: 'error'
+                        });
+                        continue;
                     }
                     
                     // Verificar si el turno ya existe para este empleado en esta fecha
@@ -101,7 +111,6 @@ class EmployeeShiftController {
                         // Verificar si hay cambios reales antes de actualizar
                         if (existingShift.turn === shiftValidation.data && 
                             existingShift.break === breakValue) {
-                            // No hay cambios, omitir la actualización
                             results.skipped++;
                             continue;
                         }

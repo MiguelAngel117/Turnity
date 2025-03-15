@@ -30,9 +30,9 @@ class ShiftGenerator {
         // Verificar que los argumentos sean válidos
         if (!weeklyShift || !Array.isArray(weeklyShift.shifts)) {
             validation.errors.push({
-                field: 'weeklyShift',
+                id_employee: employee?.number_document || 'general',
                 message: 'Los turnos deben ser un array válido',
-                employeeId: employee?.number_document || 'Unknown'
+                type: 'error'
             });
             return validation;
         }
@@ -49,9 +49,9 @@ class ShiftGenerator {
             
             if (!shift || typeof shift.hours !== 'number' || !shift.shift_date) {
                 validation.errors.push({
-                    field: `weeklyShift.shifts[${shiftIndex}]`,
-                    message: 'El turno debe incluir un número de horas válido y una fecha',
-                    employeeId: employee?.number_document || 'Unknown'
+                    id_employee: employee?.number_document || 'general',
+                    message: `El turno en la posición ${shiftIndex} debe incluir un número de horas válido y una fecha`,
+                    type: 'advertencia'
                 });
                 continue;
             }
@@ -62,9 +62,9 @@ class ShiftGenerator {
             // Validar horas del turno
             if (shift.hours !== 0 && (shift.hours < this.HOURS.MIN_NUM_HOURS || shift.hours > this.HOURS.MAX_NUM_HOURS)) {
                 validation.errors.push({
-                    field: `weeklyShift.shifts[${shiftIndex}]`,
-                    message: `Las horas del turno deben ser 0 o estar entre ${this.HOURS.MIN_NUM_HOURS} y ${this.HOURS.MAX_NUM_HOURS} horas`,
-                    employeeId: employee?.number_document || 'Unknown'
+                    id_employee: employee?.number_document || 'general',
+                    message: `Las horas del turno en la posición ${shiftIndex} deben ser 0 o estar entre ${this.HOURS.MIN_NUM_HOURS} y ${this.HOURS.MAX_NUM_HOURS} horas`,
+                    type: 'advertencia'
                 });
             }
 
@@ -79,9 +79,9 @@ class ShiftGenerator {
                     } else {
                         // CORRECCIÓN: Validar que los empleados de 36 y 46 horas trabajen todos los sábados
                         validation.errors.push({
-                            field: `weeklyShift.shifts[${shiftIndex}]`,
+                            id_employee: employee.number_document,
                             message: 'Los empleados de jornada de 36 o 46 horas deben trabajar todos los sábados',
-                            employeeId: employee.number_document
+                            type: 'advertencia'
                         });
                     }
                 }
@@ -95,9 +95,9 @@ class ShiftGenerator {
                 // Los empleados de 24h deben trabajar todos los domingos
                 if(shiftDay === 7 && shift.hours === 0) {
                     validation.errors.push({
-                        field: `weeklyShift.shifts[${shiftIndex}]`,
+                        id_employee: employee.number_document,
                         message: 'Los empleados de jornada de 24 horas deben trabajar todos los domingos',
-                        employeeId: employee.number_document
+                        type: 'advertencia'
                     });
                 }
             } 
@@ -105,9 +105,9 @@ class ShiftGenerator {
                 // Empleados de 16h solo pueden trabajar sábados, domingos o días festivos
                 if (shiftDay !== 6 && shiftDay !== 7 && shift.hours > 0) {
                     validation.errors.push({
-                        field: `weeklyShift.shifts[${shiftIndex}]`,
+                        id_employee: employee.number_document,
                         message: 'Los empleados de jornada de 16 horas solo pueden trabajar sábados, domingos o días festivos',
-                        employeeId: employee.number_document
+                        type: 'advertencia'
                     });
                 }
             }
@@ -121,9 +121,9 @@ class ShiftGenerator {
             const maxSundays = numWeeks === 5 ? this.SUNDAYS_ALLOWED.FIVE_WEEKS : this.SUNDAYS_ALLOWED.FOUR_WEEKS;
             if (totalSundayWorkCount > maxSundays) {
                 validation.errors.push({
-                    field: 'weeklyShift',
+                    id_employee: employee.number_document,
                     message: `El empleado no puede trabajar más de ${maxSundays} domingos en ${numWeeks} semanas`,
-                    employeeId: employee.number_document
+                    type: 'advertencia'
                 });
             }
         });
@@ -132,9 +132,9 @@ class ShiftGenerator {
         validations.push(() => {
             if (totalHours !== workingDay) {
                 validation.errors.push({
-                    field: 'totalHours',
+                    id_employee: employee.number_document,
                     message: `Las horas totales (${totalHours}) no coinciden con la jornada laboral permitida (${workingDay} horas)`,
-                    employeeId: employee.number_document
+                    type: 'error'
                 });
             }
         });
@@ -164,8 +164,9 @@ class ShiftGenerator {
         try {
             if (!employeeShifts || !Array.isArray(employeeShifts)) {
                 response.errors.push({
-                    field: 'employeeShifts',
-                    message: 'employeeShifts debe ser un array válido'
+                    id_employee: 'general',
+                    message: 'employeeShifts debe ser un array válido',
+                    type: 'error'
                 });
                 return response;
             }
@@ -180,9 +181,9 @@ class ShiftGenerator {
                 // Validar que exista el empleado
                 if (!employeeShift.employee || !employeeShift.weeklyShifts) {
                     response.errors.push({
-                        field: 'employeeShift',
+                        id_employee: employeeShift?.employee?.number_document || 'general',
                         message: 'Cada elemento debe tener employee y weeklyShifts',
-                        employeeId: employeeShift?.employee?.number_document || 'Unknown'
+                        type: 'error'
                     });
                     continue;
                 }
@@ -251,9 +252,9 @@ class ShiftGenerator {
                         console.log(counterFullTime + " " + employeeData.weeksCount);
                     
                     response.errors.push({
-                        field: 'general',
+                        id_employee: employeeId,
                         message: `El empleado con jornada de ${employeeData.workingDay} horas debe trabajar todos los sábados (${employeeData.saturdayWorkCount} de ${employeeData.weeksCount})`,
-                        employeeId: employeeId
+                        type: 'advertencia'
                     });
                 }
                 
@@ -261,9 +262,9 @@ class ShiftGenerator {
                 const maxSundays = numWeeks === 5 ? this.SUNDAYS_ALLOWED.FIVE_WEEKS : this.SUNDAYS_ALLOWED.FOUR_WEEKS;
                 if (employeeData.totalSundays > maxSundays) {
                     response.errors.push({
-                        field: 'general',
+                        id_employee: employeeId,
                         message: `El empleado no puede trabajar más de ${maxSundays} domingos en ${numWeeks} semanas (actual: ${employeeData.totalSundays})`,
-                        employeeId: employeeId
+                        type: 'advertencia'
                     });
                 }
             }
@@ -278,9 +279,9 @@ class ShiftGenerator {
             return response;
         } catch (error) {
             response.errors.push({
-                field: 'general',
-                message: 'Error interno del servidor',
-                details: error.message
+                id_employee: 'general',
+                message: 'Error interno del servidor: ' + error.message,
+                type: 'error'
             });
             return response;
         }
