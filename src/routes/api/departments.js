@@ -2,6 +2,8 @@ const express = require('express');
 const departmentController = require('../../controllers/departmentController');
 
 const router = express.Router();
+const checkAuth = require('../../middleware/checkAuth');
+const checkRoleAuth = require('../../middleware/checkRoleAuth');
 
 // GET: Obtener todos los departamentos
 router.get('/', checkAuth, async (req, res) => {

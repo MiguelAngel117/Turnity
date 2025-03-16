@@ -2,6 +2,8 @@ const express = require('express');
 const departmentStoreController = require('../../controllers/departmentStoreController');
 
 const router = express.Router();
+const checkAuth = require('../../middleware/checkAuth');
+const checkRoleAuth = require('../../middleware/checkRoleAuth');
 
 // GET: Obtener todos los departamentos de tiendas
 router.get('/', checkAuth, async (req, res) => {
