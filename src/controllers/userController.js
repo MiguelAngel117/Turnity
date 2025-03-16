@@ -106,6 +106,11 @@ class UserController {
                     'CALL AssignUserPermissions(?, ?)',
                     [user.number_document, userData.role_name]
                 );
+            } else if (userData.role_name === 'Gerente' && userData.stores) {
+                await pool.execute(
+                    'CALL AssignUserPermissionsSpecificStores(?, ?, ?)',
+                    [user.number_document, userData.role_name, userData.stores]
+                );
             }
         }
         user.password = null;
@@ -251,7 +256,16 @@ class UserController {
             WHERE usa.number_document = ?
         `, [number_document]);
         
-        return stores;
+        return stores.map(store => {
+            const cleanName = store.name_store?.startsWith('FALABELLA - ') 
+            ? store.name_store.substring(12)
+            : store.name_store;
+            
+            return {
+                id_store: store.id_store,
+                name_store: cleanName
+            };
+        });
     }
 
     // Obtener departamentos accesibles para un usuario en una tienda
@@ -267,7 +281,7 @@ class UserController {
     }
 
     // Asignar un rol a un usuario
-    async assignRoleToUser(number_document, role_name) {
+    async assignRoleToUser(number_document, role_name, stores = null) {
         // Verificar si el usuario existe
         const user = await this.getUserByDocument(number_document);
         if (!user) {
@@ -305,6 +319,11 @@ class UserController {
             await pool.execute(
                 'CALL AssignUserPermissions(?, ?)',
                 [number_document, role_name]
+            );
+        }else if (role_name === 'Gerente' && stores) {
+            await pool.execute(
+                'CALL AssignUserPermissionsSpecificStores(?, ?, ?)',
+                [number_document, role_name, stores]
             );
         }
 

@@ -108,12 +108,12 @@ router.get('/:number_document/roles', checkAuth, async (req, res) => {
 // Asignar roles
 router.post('/:number_document/roles', checkAuth, checkRoleAuth(['Administrador']), async (req, res) => {
     try {
-        const { role_name } = req.body;
+        const { role_name, stores } = req.body;
         if (!role_name) {
             return res.status(400).json({ error: 'Nombre del rol es requerido' });
         }
 
-        await userController.assignRoleToUser(req.params.number_document, role_name);
+        await userController.assignRoleToUser(req.params.number_document, role_name, stores);
         res.status(201).json({ message: 'Rol asignado correctamente' });
     } catch (error) {
         res.status(400).json({ error: error.message });

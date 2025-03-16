@@ -70,19 +70,19 @@ class EmployeeShiftController {
                 numWeeks,
                 employeeShifts
             );
-            
-            if (!validatedShifts.success) {
-                return {
-                    status: 400,
-                    errors: validatedShifts.errors
-                };
-            }
-            
             const results = {
                 created: 0,
                 updated: 0,
                 skipped: 0
             };
+            
+            if (!validatedShifts.success) {
+                return {
+                    status: 409,
+                    results: results,
+                    errors: validatedShifts.errors
+                };
+            }
 
             for (const shiftData of validatedShifts.data) {
                 for (const shift of shiftData.shifts) {

@@ -20,7 +20,7 @@ class ShiftGenerator {
         }
     }
 
-    validateWeeklyHours(weeklyShift, employee, numWeeks) {
+    validateWeeklyHours(weeklyShift, employee, numWeeks, weekCount) {
         const validation = {
             isValid: false,
             data: null,
@@ -51,7 +51,7 @@ class ShiftGenerator {
                 validation.errors.push({
                     id_employee: employee?.number_document || 'general',
                     message: `El turno en la posición ${shiftIndex} debe incluir un número de horas válido y una fecha`,
-                    type: 'advertencia'
+                    type: 'error'
                 });
                 continue;
             }
@@ -80,7 +80,7 @@ class ShiftGenerator {
                         // CORRECCIÓN: Validar que los empleados de 36 y 46 horas trabajen todos los sábados
                         validation.errors.push({
                             id_employee: employee.number_document,
-                            message: 'Los empleados de jornada de 36 o 46 horas deben trabajar todos los sábados',
+                            message: `Los empleados de jornada de ${workingDay} horas deben trabajar todos los sábados`,
                             type: 'advertencia'
                         });
                     }
@@ -123,17 +123,17 @@ class ShiftGenerator {
                 validation.errors.push({
                     id_employee: employee.number_document,
                     message: `El empleado no puede trabajar más de ${maxSundays} domingos en ${numWeeks} semanas`,
-                    type: 'advertencia'
+                    type: 'error'
                 });
             }
         });
-
+        weekCount++;
         // Validar horas por semana
         validations.push(() => {
             if (totalHours !== workingDay) {
                 validation.errors.push({
                     id_employee: employee.number_document,
-                    message: `Las horas totales (${totalHours}) no coinciden con la jornada laboral permitida (${workingDay} horas)`,
+                    message: `Las horas totales (${totalHours}) no coinciden con la jornada laboral permitida (${workingDay} horas) en la semana ${weekCount}`,
                     type: 'error'
                 });
             }
@@ -200,14 +200,16 @@ class ShiftGenerator {
                         weeksCount: 0
                     };
                 }
-
+                let weekCount = 0;
                 // Validar cada semana individualmente
                 for (const weeklyShift of employeeShift.weeklyShifts) {
+                    
                     let workingDayInWeek = weeklyShift.working_day || workingDay;
                     const validation = this.validateWeeklyHours(
                         weeklyShift,
                         employeeShift.employee,
-                        numWeeks
+                        numWeeks,
+                        weekCount++
                     );
 
                     if(workingDayInWeek === this.WORKING_DAYS.PART_TIME_36 || workingDayInWeek === this.WORKING_DAYS.FULL_TIME){
@@ -254,7 +256,7 @@ class ShiftGenerator {
                     response.errors.push({
                         id_employee: employeeId,
                         message: `El empleado con jornada de ${employeeData.workingDay} horas debe trabajar todos los sábados (${employeeData.saturdayWorkCount} de ${employeeData.weeksCount})`,
-                        type: 'advertencia'
+                        type: 'error'
                     });
                 }
                 

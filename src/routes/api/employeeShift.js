@@ -29,8 +29,8 @@ router.post('/create', checkAuth, async (req, res) => {
             numWeeks,
             employeeShifts
         );
-
-        return res.status(result.status || (result.success ? 201 : 400)).json({
+        console.log(result);
+        return res.status(result.status || (result.success ? 201 : 409)).json({
             success: result.success,
             message: result.message,
             results: result.results,
