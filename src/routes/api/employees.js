@@ -6,12 +6,14 @@ const path = require('path');
 const fs = require('fs');
 const XLSX = require('xlsx');
 const router = express.Router();
+const checkAuth = require('../../middleware/checkAuth');
+const checkRoleAuth = require('../../middleware/checkRoleAuth');
 
 // Configuración básica de multer
 const upload = multer({ dest: 'uploads/' });
 
 // Ruta para importar Excel
-router.post('/import', upload.single('file'), async (req, res) => {
+router.post('/import', checkAuth, checkRoleAuth(['Administrador']), upload.single('file'), async (req, res) => {
     try {
         console.log('Archivo recibido:', req.file);
         
@@ -43,8 +45,8 @@ router.post('/import', upload.single('file'), async (req, res) => {
 });
 
 
-// GET: Obtener todos los empleadosuel
-router.get('/', async (req, res) => {
+// GET: Obtener todos los empleados
+router.get('/', checkAuth, checkRoleAuth(['Administrador', 'Gerente']), async (req, res) => {
     try {
         const employees = await employeeController.getAllEmployees();
         res.json(employees);
@@ -54,7 +56,7 @@ router.get('/', async (req, res) => {
 });
 
 // GET: Obtener empleado por documento
-router.get('/:number_document', async (req, res) => {
+router.get('/:number_document', checkAuth, async (req, res) => {
     try {
         const employee = await employeeController.getEmployeeByDocument(req.params.number_document);
         if (!employee) {
@@ -67,7 +69,7 @@ router.get('/:number_document', async (req, res) => {
 });
 
 // POST: Crear empleado
-router.post('/', async (req, res) => {
+router.post('/', checkAuth, checkRoleAuth(['Administrador']),async (req, res) => {
     try {
         const newEmployee = await employeeController.createEmployee(req.body);
         res.status(201).json(newEmployee);
@@ -77,7 +79,7 @@ router.post('/', async (req, res) => {
 });
 
 // PUT: Actualizar empleado
-router.put('/:number_document', async (req, res) => {
+router.put('/:number_document', checkAuth, checkRoleAuth(['Administrador']), async (req, res) => {
     try {
         const updatedEmployee = await employeeController.updateEmployee(req.params.number_document, req.body);
         res.json(updatedEmployee);
@@ -87,7 +89,7 @@ router.put('/:number_document', async (req, res) => {
 });
 
 // DELETE: Eliminar empleado
-router.delete('/:number_document', async (req, res) => {
+router.delete('/:number_document', checkAuth, checkRoleAuth(['Administrador']), async (req, res) => {
     try {
         await employeeController.deleteEmployee(req.params.number_document);
         res.status(204).send();

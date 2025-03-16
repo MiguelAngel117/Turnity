@@ -2,8 +2,10 @@ const express = require('express');
 const moment = require('moment');
 const shiftController = require('../../controllers/employeeShiftController');
 const router = express.Router();
+const checkAuth = require('../../middleware/checkAuth');
+const checkRoleAuth = require('../../middleware/checkRoleAuth');
 
-router.post('/create', async (req, res) => {
+router.post('/create', checkAuth, async (req, res) => {
     try {
         const { 
             storeId, 
@@ -45,7 +47,8 @@ router.post('/create', async (req, res) => {
     }
 });
 
-router.post('/by-employee-list', async (req, res) => {
+//gRAFICA DE TURNOS
+router.post('/by-employee-list', checkAuth, async (req, res) => {
     try {
         const { employees, startDate, endDate, numWeeks } = req.body;
         const result = await shiftController.getShiftsByEmployeeList(employees, startDate, endDate, numWeeks);
@@ -56,14 +59,13 @@ router.post('/by-employee-list', async (req, res) => {
     }
 });
 
-
-router.get('/employee-shifts', async (req, res) => {
+//REPORTES DE TURNOS - COMPESACIÓN Y SALARIOS
+router.get('/employee-shifts', checkAuth, checkRoleAuth(['Administrador']), async (req, res) => {
     try {
         const { store, department, report } = req.query;
         let reportF = report === 'true' ? true : false;
         const result = await shiftController.getAllEmployeeShifts(store, department, reportF);
         return res.status(result.status).json({
-            success: result.status < 400,
             message: result.message,
             data: result.data
         });
@@ -76,8 +78,8 @@ router.get('/employee-shifts', async (req, res) => {
     }
 });
 
-
-router.get('/', async (req, res) => {
+//Dejar los turnos por mes
+router.get('/', checkAuth, checkRoleAuth(['Administrador']), async (req, res) => {
     try {
         const result = await shiftController.getAllShifts();
         return res.status(result.status).json({
@@ -94,7 +96,7 @@ router.get('/', async (req, res) => {
     }
 });
 
-router.get('/date-range', async (req, res) => {
+router.get('/date-range', checkAuth, checkRoleAuth(['Administrador']), async (req, res) => {
     try {
         const { startDate, endDate } = req.query;
         
@@ -121,7 +123,7 @@ router.get('/date-range', async (req, res) => {
     }
 });
 
-router.get('/:id', async (req, res) => {
+router.get('/:id',checkAuth, async (req, res) => {
     try {
         const result = await shiftController.getShiftById(req.params.id);
         return res.status(result.status).json({
@@ -138,7 +140,7 @@ router.get('/:id', async (req, res) => {
     }
 });
 
-router.post('/generate-weeks', async (req, res) => {
+router.post('/generate-weeks', checkAuth, async (req, res) => {
     const { date } = req.body;
 
     if (!date || !moment(date, 'YYYY-MM-DD', true).isValid()) {
@@ -166,7 +168,7 @@ router.post('/generate-weeks', async (req, res) => {
     }
 });
 
-router.put('/', async (req, res) => {
+router.put('/', checkAuth,async (req, res) => {
     try {
         const {date, employees} = req.body;
         const result = await shiftController.updateShifts(date, employees);
@@ -184,7 +186,7 @@ router.put('/', async (req, res) => {
     }
 });
 
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', checkAuth, async (req, res) => {
     try {
         const result = await shiftController.deleteShift(req.params.id);
         return res.status(result.status).json({
@@ -201,7 +203,7 @@ router.delete('/:id', async (req, res) => {
     }
 });
 
-router.delete('/', async (req, res) => {
+router.delete('/', checkAuth, async (req, res) => {
     try {
         const result = await shiftController.deleteAllShifts();
         return res.status(result.status).json({
@@ -218,7 +220,7 @@ router.delete('/', async (req, res) => {
     }
 });
 
-router.get('/employee/:number_document', async (req, res) => {
+router.get('/employee/:number_document', checkAuth,async (req, res) => {
     try {
         const result = await shiftController.getShiftsByEmployee(req.params.number_document);
         return res.status(result.status).json({

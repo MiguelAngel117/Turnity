@@ -11,5 +11,6 @@ router.use(`${api}/employeeDep`, require('./api/employeeDepartment'));
 router.use(`${api}/position`, require('./api/positions'));
 router.use(`${api}/employeeShift`, require('./api/employeeShift'));
 router.use(`${api}/shifts`, require('./api/shifts'));
+router.use(`${api}/users`, require('./api/users'));
 
 module.exports = router;

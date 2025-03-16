@@ -4,7 +4,7 @@ const departmentStoreController = require('../../controllers/departmentStoreCont
 const router = express.Router();
 
 // GET: Obtener todos los departamentos de tiendas
-router.get('/', async (req, res) => {
+router.get('/', checkAuth, async (req, res) => {
     try {
         const departmentStores = await departmentStoreController.getAllDepartmentStores();
         res.json(departmentStores);
@@ -14,7 +14,7 @@ router.get('/', async (req, res) => {
 });
 
 // GET: Obtener departamentos por tienda
-router.get('/store/:id_store', async (req, res) => {
+router.get('/store/:id_store', checkAuth, async (req, res) => {
     try {
         const departmentStores = await departmentStoreController.getDepartmentsByStore(req.params.id_store);
         res.json(departmentStores);
@@ -24,7 +24,7 @@ router.get('/store/:id_store', async (req, res) => {
 });
 
 // GET: Obtener departamento de tienda por ID
-router.get('/:id_store_dep', async (req, res) => {
+router.get('/:id_store_dep', checkAuth, async (req, res) => {
     try {
         const departmentStore = await departmentStoreController.getDepartmentStoreById(req.params.id_store_dep);
         if (!departmentStore) {
@@ -38,7 +38,7 @@ router.get('/:id_store_dep', async (req, res) => {
 
 
 // POST: Crear departamento de tienda
-router.post('/', async (req, res) => {
+router.post('/', checkAuth, checkRoleAuth(['Administrador']), async (req, res) => {
     try {
         const newDepartmentStore = await departmentStoreController.createDepartmentStore(req.body);
         res.status(201).json(newDepartmentStore);
@@ -48,7 +48,7 @@ router.post('/', async (req, res) => {
 });
 
 // PUT: Actualizar departamento de tienda
-router.put('/:id_store_dep', async (req, res) => {
+router.put('/:id_store_dep', checkAuth, checkRoleAuth(['Administrador']), async (req, res) => {
     try {
         const updatedDepartmentStore = await departmentStoreController.updateDepartmentStore(req.params.id_store_dep, req.body);
         res.json(updatedDepartmentStore);
@@ -58,7 +58,7 @@ router.put('/:id_store_dep', async (req, res) => {
 });
 
 // DELETE: Eliminar departamento de tienda
-router.delete('/:id_store_dep', async (req, res) => {
+router.delete('/:id_store_dep', checkAuth, checkRoleAuth(['Administrador']), async (req, res) => {
     try {
         await departmentStoreController.deleteDepartmentStore(req.params.id_store_dep);
         res.status(204).send();

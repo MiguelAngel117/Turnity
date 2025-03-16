@@ -402,9 +402,9 @@ class EmployeeShiftController {
             const whereClause = conditions.length > 0 ? ` WHERE ${conditions.join(" AND ")}` : "";
     
             const query = `
-                SELECT es.id_shift_his, es.number_document, es.turn, es.shift_date, es.break,
+                SELECT es.id_shift_his, ed.working_day, es.number_document, es.turn, es.shift_date, es.break,
                        s.hours, s.initial_hour,
-                       e.full_name AS employee_name, e.num_doc_manager, e.working_day, 
+                       e.full_name AS employee_name, e.num_doc_manager, 
                        m.full_name AS manager_name,
                        st.name_store,
                        d.name_department

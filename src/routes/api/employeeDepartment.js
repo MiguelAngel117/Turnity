@@ -2,10 +2,12 @@ const express = require('express');
 const router = express.Router();
 const EmployeeDepartmentController = require('../../controllers/employeeDepController');
 const controller = new EmployeeDepartmentController();
+const checkAuth = require('../../middleware/checkAuth');
+const checkRoleAuth = require('../../middleware/checkRoleAuth');
 
-router.post('/', async (req, res) => {
+router.post('/', checkAuth, checkRoleAuth(['Administrador']), async (req, res) => {
     try {
-        const employees = req.body; // Recibir el array de empleados desde el request
+        const employees = req.body;
         if (!Array.isArray(employees) || employees.length === 0) {
             return res.status(400).json({ error: "Se requiere un array de empleados válido" });
         }
@@ -17,7 +19,7 @@ router.post('/', async (req, res) => {
     }
 });
 
-router.get('/', async (req, res) => {
+router.get('/', checkAuth, async (req, res) => {
     try {
         const results = await controller.getAll();
         res.json(results);
@@ -26,7 +28,7 @@ router.get('/', async (req, res) => {
     }
 });
 
-router.get('/:document', async (req, res) => {
+router.get('/:document', checkAuth, async (req, res) => {
     try {
         const result = await controller.getByDocument(req.params.document);
         if (!result) return res.status(404).json({ message: 'No encontrado' });
@@ -37,7 +39,7 @@ router.get('/:document', async (req, res) => {
 });
 
 // Ruta para obtener todas las personas por sucursal
-router.get('/store/:storeId', async (req, res) => {
+router.get('/store/:storeId', checkAuth,async (req, res) => {
     try {
         const { storeId } = req.params;
         const employees = await controller.getByStore(storeId);
@@ -48,7 +50,7 @@ router.get('/store/:storeId', async (req, res) => {
 });
 
 // Ruta para obtener todas las personas por sucursal y departamento
-router.get('/store/:storeId/department/:departmentId', async (req, res) => {
+router.get('/store/:storeId/department/:departmentId',checkAuth, async (req, res) => {
     try {
         const { storeId, departmentId } = req.params;
         const employees = await controller.getByStoreAndDepartment(storeId, departmentId);
@@ -59,7 +61,7 @@ router.get('/store/:storeId/department/:departmentId', async (req, res) => {
 });
 
 // Ruta para obtener todas las personas por sucursal, departamento y posición
-router.get('/store/:storeId/department/:departmentId/position/:positionId', async (req, res) => {
+router.get('/store/:storeId/department/:departmentId/position/:positionId', checkAuth, async (req, res) => {
     try {
         const { storeId, departmentId, positionId } = req.params;
         const employees = await controller.getByStoreDepartmentAndPosition(storeId, departmentId, positionId);
@@ -69,7 +71,9 @@ router.get('/store/:storeId/department/:departmentId/position/:positionId', asyn
     }
 });
 
-router.put('/:document', async (req, res) => {
+
+//revisar
+router.put('/:document', checkAuth, async (req, res) => {
     try {
         const empDept = new EmployeeDepartment(
             req.params.document,
@@ -83,7 +87,7 @@ router.put('/:document', async (req, res) => {
     }
 });
 
-router.delete('/:document', async (req, res) => {
+router.delete('/:document', checkAuth, async (req, res) => {
     try {
         await controller.delete(req.params.document);
         res.json({ message: 'Eliminado correctamente' });

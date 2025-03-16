@@ -4,7 +4,7 @@ const departmentController = require('../../controllers/departmentController');
 const router = express.Router();
 
 // GET: Obtener todos los departamentos
-router.get('/', async (req, res) => {
+router.get('/', checkAuth, async (req, res) => {
     try {
         const departments = await departmentController.getAllDepartments();
         res.json(departments);
@@ -14,7 +14,7 @@ router.get('/', async (req, res) => {
 });
 
 // GET: Obtener departamento por ID
-router.get('/:id_department', async (req, res) => {
+router.get('/:id_department', checkAuth, async (req, res) => {
     try {
         const department = await departmentController.getDepartmentById(req.params.id_department);
         if (!department) {
@@ -27,7 +27,7 @@ router.get('/:id_department', async (req, res) => {
 });
 
 // POST: Crear departamento
-router.post('/', async (req, res) => {
+router.post('/', checkAuth, checkRoleAuth(['Administrador']), async (req, res) => {
     try {
         const newDepartment = await departmentController.createDepartment(req.body);
         res.status(201).json(newDepartment);
@@ -37,7 +37,7 @@ router.post('/', async (req, res) => {
 });
 
 // PUT: Actualizar departamento
-router.put('/:id_department', async (req, res) => {
+router.put('/:id_department', checkAuth, checkRoleAuth(['Administrador']), async (req, res) => {
     try {
         const updatedDepartment = await departmentController.updateDepartment(req.params.id_department, req.body);
         res.json(updatedDepartment);
@@ -47,7 +47,7 @@ router.put('/:id_department', async (req, res) => {
 });
 
 // DELETE: Eliminar departamento
-router.delete('/:id_department', async (req, res) => {
+router.delete('/:id_department', checkAuth, checkRoleAuth(['Administrador']), async (req, res) => {
     try {
         await departmentController.deleteDepartment(req.params.id_department);
         res.status(204).send();

@@ -2,9 +2,11 @@ const express = require('express');
 const storeController = require('../../controllers/storeController');
 
 const router = express.Router();
+const checkAuth = require('../../middleware/checkAuth');
+const checkRoleAuth = require('../../middleware/checkRoleAuth');
 
 // GET: Obtener todas las tiendas
-router.get('/', async (req, res) => {
+router.get('/', checkAuth, async (req, res) => {
     try {
         const stores = await storeController.getAllStores();
         res.json(stores);
@@ -14,7 +16,7 @@ router.get('/', async (req, res) => {
 });
 
 // GET: Obtener tienda por ID
-router.get('/:id_store', async (req, res) => {
+router.get('/:id_store', checkAuth, async (req, res) => {
     try {
         const store = await storeController.getStoreById(req.params.id_store);
         if (!store) {
@@ -27,7 +29,7 @@ router.get('/:id_store', async (req, res) => {
 });
 
 // POST: Crear tienda
-router.post('/', async (req, res) => {
+router.post('/', checkAuth, checkRoleAuth(['Administrador']), async (req, res) => {
     try {
         const newStore = await storeController.createStore(req.body);
         res.status(201).json(newStore);
@@ -37,7 +39,7 @@ router.post('/', async (req, res) => {
 });
 
 // PUT: Actualizar tienda
-router.put('/:id_store', async (req, res) => {
+router.put('/:id_store', checkAuth, checkRoleAuth(['Administrador']), async (req, res) => {
     try {
         const updatedStore = await storeController.updateStore(req.params.id_store, req.body);
         res.json(updatedStore);
@@ -47,7 +49,7 @@ router.put('/:id_store', async (req, res) => {
 });
 
 // DELETE: Eliminar tienda
-router.delete('/:id_store', async (req, res) => {
+router.delete('/:id_store', checkAuth, checkRoleAuth(['Administrador']), async (req, res) => {
     try {
         await storeController.deleteStore(req.params.id_store);
         res.status(204).send();

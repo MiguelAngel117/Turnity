@@ -1,10 +1,12 @@
 const express = require('express');
 const positionController = require('../../controllers/positionsController');
+const checkAuth = require('../../middleware/checkAuth');
+const checkRoleAuth = require('../../middleware/checkRoleAuth');
 
 const router = express.Router();
 
 // GET: Obtener todas las posiciones
-router.get('/', async (req, res) => {
+router.get('/', checkAuth, async (req, res) => {
     try {
         const positions = await positionController.getAllPositions();
         res.json(positions);
@@ -14,7 +16,7 @@ router.get('/', async (req, res) => {
 });
 
 // GET: Obtener posición por ID
-router.get('/:id_position', async (req, res) => {
+router.get('/:id_position', checkAuth, async (req, res) => {
     try {
         const position = await positionController.getPositionById(req.params.id_position);
         if (!position) {
@@ -27,7 +29,7 @@ router.get('/:id_position', async (req, res) => {
 });
 
 // POST: Crear posición
-router.post('/', async (req, res) => {
+router.post('/', checkAuth, checkRoleAuth(['Administrador']), async (req, res) => {
     try {
         const newPosition = await positionController.createPosition(req.body);
         res.status(201).json(newPosition);
@@ -37,7 +39,7 @@ router.post('/', async (req, res) => {
 });
 
 // PUT: Actualizar posición
-router.put('/:id_position', async (req, res) => {
+router.put('/:id_position', checkAuth, checkRoleAuth(['Administrador']), async (req, res) => {
     try {
         const updatedPosition = await positionController.updatePosition(req.params.id_position, req.body);
         res.json(updatedPosition);
@@ -47,7 +49,7 @@ router.put('/:id_position', async (req, res) => {
 });
 
 // DELETE: Eliminar posición
-router.delete('/:id_position', async (req, res) => {
+router.delete('/:id_position', checkAuth, checkRoleAuth(['Administrador']), async (req, res) => {
     try {
         await positionController.deletePosition(req.params.id_position);
         res.status(204).send();

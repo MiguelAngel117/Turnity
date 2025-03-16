@@ -1,10 +1,12 @@
 const express = require('express');
 const shiftController = require('../../controllers/shiftsController');
+const checkAuth = require('../../middleware/checkAuth');
+const checkRoleAuth = require('../../middleware/checkRoleAuth');
 
 const router = express.Router();
 
 // GET: Obtener todos los turnos
-router.get('/', async (req, res) => {
+router.get('/', checkAuth, async (req, res) => {
     try {
         const shifts = await shiftController.getAllShifts();
         res.json(shifts);
@@ -13,7 +15,7 @@ router.get('/', async (req, res) => {
     }
 });
 
-router.get('/list/', async (req, res) => {
+router.get('/list/', checkAuth, async (req, res) => {
     try {
         const list = await shiftController.getFilteredShifts();
         res.json(list);
@@ -22,7 +24,7 @@ router.get('/list/', async (req, res) => {
     }
 });
 
-router.get('/breaks/:code_shift', async (req, res) => {
+router.get('/breaks/:code_shift', checkAuth, async (req, res) => {
     try {
         const code_shift = req.params.code_shift;
         const breaks = await shiftController.getShiftBreaks(code_shift);
@@ -33,7 +35,7 @@ router.get('/breaks/:code_shift', async (req, res) => {
 })
 
 // GET: Obtener turno por código
-router.get('/:code_shift', async (req, res) => {
+router.get('/:code_shift', checkAuth, async (req, res) => {
     try {
         const shift = await shiftController.getShiftByCode(req.params.code_shift);
         if (!shift) {
@@ -45,7 +47,7 @@ router.get('/:code_shift', async (req, res) => {
     }
 });
 
-router.get('/by-hours/:hours', async (req, res) => {
+router.get('/by-hours/:hours', checkAuth, async (req, res) => {
     try {
         const hours = parseInt(req.params.hours); // Convertir a número
         const shifts = await shiftController.getShiftsByHours(hours);
@@ -61,7 +63,7 @@ router.get('/by-hours/:hours', async (req, res) => {
 });
 
 // POST: Crear múltiples turnos
-router.post('/bulk', async (req, res) => {
+router.post('/bulk', checkAuth, checkRoleAuth(['Administrador']), async (req, res) => {
     try {
         const result = await shiftController.createMultipleShifts(req.body);
         res.status(201).json(result);
@@ -71,7 +73,7 @@ router.post('/bulk', async (req, res) => {
 });
 
 // PUT: Actualizar turno
-router.put('/', async (req, res) => {
+router.put('/', checkAuth, checkRoleAuth(['Administrador']), async (req, res) => {
     try {
         const updatedShift = await shiftController.updateShifts(req.params.code_shift, req.body);
         res.json(updatedShift);
@@ -81,7 +83,7 @@ router.put('/', async (req, res) => {
 });
 
 // DELETE: Eliminar turno
-router.delete('/:code_shift', async (req, res) => {
+router.delete('/:code_shift', checkAuth, checkRoleAuth(['Administrador']), async (req, res) => {
     try {
         await shiftController.deleteShift(req.params.code_shift);
         res.status(204).send();
@@ -91,7 +93,7 @@ router.delete('/:code_shift', async (req, res) => {
 });
 
 // DELETE: Eliminar turnoS
-router.delete('/', async (req, res) => {
+router.delete('/', checkAuth, checkRoleAuth(['Administrador']), async (req, res) => {
     try {
         await shiftController.deleteAllShifts();
         res.status(204).send();
