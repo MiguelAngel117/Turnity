@@ -63,7 +63,13 @@ router.get('/employee-shifts', checkAuth, checkRoleAuth(['Administrador']), asyn
     try {
         const { month} = req.query;
         const result = await shiftController.getAllEmployeeShifts(month);
-        return res.status(200).json(result);
+        if (result.status !== 200) {
+            return res.status(209).json({
+                message: result.message,
+                data: null
+            });
+        }
+        return res.status(200).json(result.data);
     } catch (error) {
         return res.status(500).json({
             success: false,

@@ -558,8 +558,9 @@ class EmployeeShiftController {
                                     isSpecialDay && 
                                     shift.hours != 0) ? 6 : shift.hours;
                 
-                // Formato del turno (ejemplo: "8H 14:30:00-23:30:00")
-                const formattedTurn = `${finalHours}H ${shift.initial_hour}-${shift.end_hour}`;
+                // Formato del turno (ejemplo: "8H 14:30")
+                const formattedTurn = `${finalHours}H ${shift.initial_hour.slice(0, -3)}`;
+
                 
                 // Añadir el turno a la lista de turnos formateados
                 formattedShifts.push({
@@ -587,7 +588,10 @@ class EmployeeShiftController {
                 return new Date(a.inicio_turno) - new Date(b.inicio_turno);
             });
             
-            return formattedShifts;
+            return {
+                status: 200,
+                data: formattedShifts
+            }
             
         } catch (error) {
             console.error("Error al obtener los turnos de empleados:", error);
