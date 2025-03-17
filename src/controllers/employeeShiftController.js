@@ -523,7 +523,7 @@ class EmployeeShiftController {
             
             shifts.forEach(shift => {
                 const employeeId = shift.number_document;
-                const shiftDate = moment(shift.shift_date).format('YYYY-MM-DD');
+                const shiftDate = moment(shift.shift_date).format('DD/MM/YYYY');
                 const employeeData = employeeInfoMap[employeeId];
                 
                 if (!employeeData) return; // Si no encontramos datos del empleado, ignoramos este turno
@@ -554,12 +554,13 @@ class EmployeeShiftController {
                 
                 // Determinar las horas correctas según las reglas de jornada especial
                 const isSpecialDay = this.listSpecialDays && this.listSpecialDays.includes(shift.turn);
+                const codeTurn = (isSpecialDay)? "DES": shift.turn;
                 const finalHours = (currentEmployeeWorkingDay === 36 && 
                                     isSpecialDay && 
                                     shift.hours != 0) ? 6 : shift.hours;
                 
                 // Formato del turno (ejemplo: "8H 14:30")
-                const formattedTurn = `${finalHours}H ${shift.initial_hour.slice(0, -3)}`;
+                const formattedTurn = (isSpecialDay)? shift:`${finalHours}H ${shift.initial_hour.slice(0, -3)}`;
 
                 
                 // Añadir el turno a la lista de turnos formateados
@@ -567,7 +568,7 @@ class EmployeeShiftController {
                     codigo_persona: employeeId,
                     nombre: employeeData.full_name,
                     jornada: currentEmployeeWorkingDay,
-                    codigo_turno: shift.turn,
+                    codigo_turno: codeTurn,
                     inicio_turno: shiftDate,
                     termino_turno: shiftDate,
                     horas: finalHours,

@@ -54,7 +54,7 @@ router.post('/by-employee-list', checkAuth, async (req, res) => {
         return res.status(200).json(result);
 
     } catch (error) {
-        return res.status(500).json({ message: result.message });
+        return res.status(500).json("Error en los turno de los empleados" );
     }
 });
 
