@@ -1,6 +1,5 @@
 class EmployeeShift {
-    constructor(id_shift_his, turn, number_document, shift_date, break_time) {
-        this.id_shift_his = id_shift_his;
+    constructor(turn, number_document, shift_date, break_time) {
         this.turn = turn;
         this.number_document = number_document;
         this.shift_date = shift_date;
