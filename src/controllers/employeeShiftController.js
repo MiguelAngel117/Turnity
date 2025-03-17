@@ -560,7 +560,7 @@ class EmployeeShiftController {
                                     shift.hours != 0) ? 6 : shift.hours;
                 
                 // Formato del turno (ejemplo: "8H 14:30")
-                const formattedTurn = (isSpecialDay)? shift:`${finalHours}H ${shift.initial_hour.slice(0, -3)}`;
+                const formattedTurn = (isSpecialDay)? shift.turn:`${finalHours}H ${shift.initial_hour.slice(0, -3)}`;
 
                 
                 // Añadir el turno a la lista de turnos formateados
