@@ -7,14 +7,14 @@ const router = express.Router();
 // Ruta para login
 router.post('/login', async (req, res) => {
     try {
-        const { email, password } = req.body;
-        if (!email || !password) {
-            return res.status(400).json({ error: 'Email y contraseña son requeridos' });
+        const { identifier, password } = req.body;
+        if (!identifier || !password) {
+            return res.status(409).json({ error: 'Email y contraseña son requeridos' });
         }
-        const userData = await userController.loginUser(email, password);
+        const userData = await userController.loginUser(identifier, password);
         res.json(userData);
     } catch (error) {
-        res.status(401).json({ error: error.message });
+        res.status(409).json({ error: error.message });
     }
 });
 

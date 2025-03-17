@@ -181,14 +181,28 @@ class UserController {
     }
 
     // Login de usuario
-    async loginUser(email, password) {
-        const [users] = await pool.execute(
-            'SELECT * FROM Users WHERE email = ? AND status_user = true',
-            [email]
-        );
+    async loginUser(identifier, password) {
+        let query;
+        let params;
+    
+        // Verifica si el identificador es un correo electrónico
+        const isEmail = identifier.includes('@');
+    
+        // Definir la consulta y parámetros según si es email o alias_user
+        if (isEmail) {
+            query = 'SELECT * FROM Users WHERE email = ? AND status_user = true';
+            params = [identifier];
+        } else {
+            query = 'SELECT * FROM Users WHERE alias_user = ? AND status_user = true';
+            params = [identifier];
+        }
+    
+        // Ejecutamos la consulta con el parámetro adecuado
+        const [users] = await pool.execute(query, params);
 
         if (users.length === 0) {
-            throw new Error('Credenciales inválidas');
+            const param = isEmail ? 'Correo electrónico' : 'Nombre de usuario';
+            throw new Error(`${param} Incorrecto`);
         }
 
         const user = users[0];
@@ -196,7 +210,7 @@ class UserController {
         // Verificar la contraseña
         const validPassword = await compare(password, user.password);
         if (!validPassword) {
-            throw new Error('Credenciales inválidas');
+            throw new Error('Contraseña Incorrecta');
         }
 
         // Obtener los roles del usuario

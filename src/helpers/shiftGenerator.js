@@ -251,8 +251,6 @@ class ShiftGenerator {
                 if ((employeeData.workingDay === this.WORKING_DAYS.PART_TIME_36 || 
                      employeeData.workingDay === this.WORKING_DAYS.FULL_TIME) && 
                     employeeData.saturdayWorkCount !== employeeData.weeksCount && counterFullTime === employeeData.weeksCount) {
-                        console.log(counterFullTime + " " + employeeData.weeksCount);
-                    
                     response.errors.push({
                         id_employee: employeeId,
                         message: `El empleado con jornada de ${employeeData.workingDay} horas debe trabajar todos los sábados (${employeeData.saturdayWorkCount} de ${employeeData.weeksCount})`,

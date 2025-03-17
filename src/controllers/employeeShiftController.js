@@ -54,6 +54,7 @@ class EmployeeShiftController {
     }
     
     async generateShifts(storeId, departmentId, numWeeks, employeeShifts) {
+        console.log(employeeShifts[0].weeklyShifts[0].shifts);
         try {
             if (!employeeShifts || !Array.isArray(employeeShifts)) {
                 return {
@@ -70,6 +71,7 @@ class EmployeeShiftController {
                 numWeeks,
                 employeeShifts
             );
+            console.log(validatedShifts);
             const results = {
                 created: 0,
                 updated: 0,
@@ -453,7 +455,6 @@ class EmployeeShiftController {
             return { status: 200, data: formattedShifts };
     
         } catch (error) {
-            console.error("Error al obtener los turnos:", error);
             return { status: 500, message: `Error al obtener los turnos: ${error.message}` };
         }
     }
@@ -577,9 +578,46 @@ class EmployeeShiftController {
                     };
                 }
                 
+                // Agrupar las jornadas por empleado para un acceso más fácil
+                const workingDaysByEmployee = {};
+                weeklyWorkingDays.forEach(wd => {
+                    const employeeId = wd.number_document.toString();
+                    if (!workingDaysByEmployee[employeeId]) {
+                        workingDaysByEmployee[employeeId] = [];
+                    }
+                    workingDaysByEmployee[employeeId].push({
+                        working_day: wd.working_day,
+                        contract_date: moment(wd.contract_date).format('YYYY-MM-DD')
+                    });
+                });
+                
+                // Encontrar la jornada aplicable para esta semana y empleado
+                const workingDaysForEmployee = workingDaysByEmployee[employeeId] || [];
+                const weekStartDate = weekStartDates[weekIndex];
+                
+                // Encontrar la jornada válida para este turno específico
+                let applicableWorkingDay = null;
+                let maxDate = null;
+                
+                for (const wd of workingDaysForEmployee) {
+                    const contractDate = wd.contract_date;
+                    // Solo consideramos fechas que no sean posteriores a la fecha del turno
+                    if (contractDate <= shiftDate) {
+                        // Si no tenemos una fecha aún, o si esta es más reciente que la actual
+                        if (maxDate === null || contractDate > maxDate) {
+                            maxDate = contractDate;
+                            applicableWorkingDay = wd;
+                        }
+                    }
+                }
+                
+                // Si no encontramos una jornada aplicable, usamos la jornada por defecto
+                const currentEmployeeWorkingDay = applicableWorkingDay ? 
+                    applicableWorkingDay.working_day : 
+                    employeeData[employeeId]?.employee?.working_day;
+                
                 // Determinar las horas correctas según las reglas de jornada especial
                 const isSpecialDay = this.listSpecialDays && this.listSpecialDays.includes(shift.turn);
-                const currentEmployeeWorkingDay = employeeData[employeeId]?.employee?.working_day;
                 const finalHours = (currentEmployeeWorkingDay === 36 && 
                                     isSpecialDay && 
                                     shift.hours != 0) ? 6 : shift.hours;
@@ -595,7 +633,7 @@ class EmployeeShiftController {
                 });
             });
             
-            // Agrupar las jornadas por empleado para un acceso más fácil
+            // Agrupar las jornadas por empleado para un acceso más fácil (movido fuera del loop de shifts)
             const workingDaysByEmployee = {};
             weeklyWorkingDays.forEach(wd => {
                 const employeeId = wd.number_document.toString();
@@ -665,7 +703,6 @@ class EmployeeShiftController {
             };
         }
     }
-     
 }
 
 module.exports = new EmployeeShiftController();
