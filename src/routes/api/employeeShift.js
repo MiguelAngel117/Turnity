@@ -49,8 +49,8 @@ router.post('/create', checkAuth, async (req, res) => {
 //gRAFICA DE TURNOS
 router.post('/by-employee-list', checkAuth, async (req, res) => {
     try {
-        const { employees, startDate, endDate, numWeeks } = req.body;
-        const result = await shiftController.getShiftsByEmployeeList(employees, startDate, endDate, numWeeks);
+        const { employees, month} = req.body;
+        const result = await shiftController.getShiftsByEmployeeList(employees, month);
         return res.status(200).json(result);
 
     } catch (error) {
@@ -61,13 +61,9 @@ router.post('/by-employee-list', checkAuth, async (req, res) => {
 //REPORTES DE TURNOS - COMPESACIÓN Y SALARIOS
 router.get('/employee-shifts', checkAuth, checkRoleAuth(['Administrador']), async (req, res) => {
     try {
-        const { store, department, report } = req.query;
-        let reportF = report === 'true' ? true : false;
-        const result = await shiftController.getAllEmployeeShifts(store, department, reportF);
-        return res.status(result.status).json({
-            message: result.message,
-            data: result.data
-        });
+        const { month} = req.query;
+        const result = await shiftController.getAllEmployeeShifts(month);
+        return res.status(200).json(result);
     } catch (error) {
         return res.status(500).json({
             success: false,
