@@ -49,8 +49,8 @@ router.post('/create', checkAuth, async (req, res) => {
 //gRAFICA DE TURNOS
 router.post('/by-employee-list', checkAuth, async (req, res) => {
     try {
-        const { employees, month} = req.body;
-        const result = await shiftController.getShiftsByEmployeeList(employees, month);
+        const { employees, month, store, department} = req.body;
+        const result = await shiftController.getShiftsByEmployeeList(employees, month, store, department);
         return res.status(200).json(result);
 
     } catch (error) {
