@@ -662,7 +662,7 @@ class EmployeeShiftController {
             let employeeIds = '';
     
             // Validación y preparación de parámetros
-            if (employees && Array.isArray(employees) && employees.length > 0) {
+            if (employees && employees.length > 0) {
                 // Caso 1: Se proporciona una lista de empleados específica
                 employeeIds = employees.join(',');
                 employeeQuery = `
