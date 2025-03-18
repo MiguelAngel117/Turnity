@@ -39,16 +39,8 @@ router.get('/', checkAuth, checkRoleAuth(['Administrador']), async (req, res) =>
 });
 
 // Obtener usuario por número de documento - propio usuario o Administrador
-router.get('/:number_document', checkAuth, async (req, res) => {
+router.get('/:number_document', checkAuth, checkRoleAuth(['Administrador']), async (req, res) => {
     try {
-        // Verificar si el usuario solicita su propia información o es Administrador
-        if (
-            req.user.number_document !== req.params.number_document && 
-            !req.user.roles.includes('Administrador')
-        ) {
-            return res.status(403).json({ error: 'No tiene permiso para ver esta información' });
-        }
-
         const user = await userController.getUserByDocument(req.params.number_document);
         if (!user) {
             return res.status(404).json({ message: 'Usuario no encontrado' });
@@ -60,16 +52,8 @@ router.get('/:number_document', checkAuth, async (req, res) => {
 });
 
 // Actualizar usuario - propio usuario o Administrador
-router.put('/:number_document', checkAuth, async (req, res) => {
+router.put('/:number_document', checkAuth, checkRoleAuth(['Administrador']), async (req, res) => {
     try {
-        // Verificar si el usuario actualiza su propia información o es Administrador
-        if (
-            req.user.number_document !== req.params.number_document && 
-            !req.user.roles.includes('Administrador')
-        ) {
-            return res.status(403).json({ error: 'No tiene permiso para modificar esta información' });
-        }
-
         const updatedUser = await userController.updateUser(req.params.number_document, req.body);
         res.json(updatedUser);
     } catch (error) {
@@ -164,32 +148,12 @@ router.get('/:number_document/departments', checkAuth, async (req, res) => {
     }
 });
 
-// Asignar acceso a una tienda
-router.post('/:number_document/stores/:id_store', checkAuth, async (req, res) => {
-    try {
-        await userController.assignStoreAccess(req.params.number_document, req.params.id_store);
-        res.json({ success: true, message: 'Acceso a la tienda asignado correctamente' });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
 
 // Quitar acceso a una tienda
 router.delete('/:number_document/stores/:id_store', checkAuth, async (req, res) => {
     try {
         await userController.removeStoreAccess(req.params.number_document, req.params.id_store);
         res.json({ success: true, message: 'Acceso a la tienda removido correctamente' });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// Asignar acceso a departamentos
-router.post('/:number_document/stores/:id_store/departments', checkAuth, checkRoleAuth(['Administrador']), async (req, res) => {
-    try {
-        const { id_departments } = req.body;
-        const result = await userController.assignDepartmentAccess(req.params.number_document, req.params.id_store, id_departments);
-        res.json(result);
     } catch (error) {
         res.status(500).json({ error: error.message });
     }

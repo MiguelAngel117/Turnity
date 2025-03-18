@@ -1,5 +1,5 @@
 class User {
-    constructor(number_document, alias_user, first_names, last_names, email, password, status_user = true) {
+    constructor(number_document, alias_user, first_names, last_names, email, password, status_user = true, role_name = null) {
         this.number_document = number_document;
         this.alias_user = alias_user;
         this.first_names = first_names;
@@ -7,6 +7,7 @@ class User {
         this.email = email;
         this.password = password;
         this.status_user = status_user;
+        this.role_name = role_name;
     }
 
     validate() {

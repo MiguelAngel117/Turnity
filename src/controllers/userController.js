@@ -4,49 +4,6 @@ const { tokenSign } = require('../helpers/generateToken');
 const {encrypt,compare } = require('../helpers/handleBcrypt');
 
 class UserController {
-    // Obtener todos los usuarios
-    async getAllUsers() {
-        const [users] = await pool.execute(`
-            SELECT u.number_document, u.alias_user, u.first_names, u.last_names, 
-            u.email, u.status_user, u.created_at, u.updated_at
-            FROM Users u
-            WHERE u.status_user = true
-        `);
-        
-        return users.map(user => new User(
-            user.number_document,
-            user.alias_user,
-            user.first_names,
-            user.last_names,
-            user.email,
-            null, // No devolvemos la contraseña
-            user.status_user
-        ));
-    }
-
-    // Obtener usuario por número de documento
-    async getUserByDocument(number_document) {
-        const [users] = await pool.execute(`
-            SELECT u.number_document, u.alias_user, u.first_names, u.last_names, 
-            u.email, u.status_user, u.created_at, u.updated_at
-            FROM Users u
-            WHERE u.number_document = ? AND u.status_user = true
-        `, [number_document]);
-        
-        if (users.length === 0) return null;
-        
-        const user = users[0];
-        return new User(
-            user.number_document,
-            user.alias_user,
-            user.first_names,
-            user.last_names,
-            user.email,
-            null, // No devolvemos la contraseña
-            user.status_user
-        );
-    }
-
     // Crear un nuevo usuario
     async createUser(userData) {
         console.log(userData.number_document);
@@ -56,7 +13,8 @@ class UserController {
             userData.first_names || "",
             userData.last_names || "",
             userData.email || "",
-            userData.password || ""
+            userData.password || "",
+            userData.role_name || ""
         );
         
         
@@ -89,42 +47,127 @@ class UserController {
                 user.last_names, 
                 user.email, 
                 hashedPassword, 
-                user.status_user
+                user.status_user,
+                user.role_name
             ]
         );
 
         // Asignar rol por defecto si se especifica
         if (userData.role_name) {
-            await pool.execute(
-                'INSERT INTO User_Role (number_document, role_name) VALUES (?, ?)',
-                [user.number_document, userData.role_name]
-            );
-
-            // Si el rol es Administrador, ejecutamos el procedimiento almacenado
-            if (userData.role_name === 'Administrador') {
-                await pool.execute(
-                    'CALL AssignUserPermissions(?, ?)',
-                    [user.number_document, userData.role_name]
-                );
-            } else if (userData.role_name === 'Gerente' && userData.stores) {
-                await pool.execute(
-                    'CALL AssignUserPermissionsSpecificStores(?, ?, ?)',
-                    [user.number_document, userData.role_name, userData.stores]
-                );
-            }
+            await this.assignRoleToUser(user.number_document, userData.role_name, userData.stores, userData.departments);
         }
         user.password = null;
         return user;
     }
+    
+    async assignRoleToUser(number_document, role_name, stores = null, departments = null) {
+        // Verificar si el usuario existe
+        console.log(number_document, role_name, stores, departments);
+        const user = await this.getUserByDocument(number_document);
+        if (!user) {
+            throw new Error('Usuario no encontrado');
+        }
+        console.log("entra inico")
+        // Verificar si el usuario tiene algún rol asignado
+        const [existingRoles] = await pool.execute(
+            'SELECT role_name FROM User_Role WHERE number_document = ?',
+            [number_document]
+        );
+    
+        // Si tiene roles asignados, eliminarlos
+        if (existingRoles.length > 0) {
+            await pool.execute(
+                'DELETE FROM User_Role WHERE number_document = ?',
+                [number_document]
+            );
+        }
+    
+        // Asignar el nuevo rol
+        await pool.execute(
+            'INSERT INTO User_Role (number_document, role_name) VALUES (?, ?)',
+            [number_document, role_name]
+        );
+    
+        // Si el rol es Administrador, ejecutamos el procedimiento almacenado
+        if (role_name === 'Administrador') {
+            console.log("entra a asdads")
+            await pool.execute(
+                'CALL AssignUserPermissions(?, ?)',
+                [number_document, role_name]
+            );
+        } else if (role_name === 'Gerente' && stores) {
+            console.log("enttrea")
+            const storeIds = stores.toString();
+            await pool.execute(
+                'CALL AssignUserPermissionsSpecificStores(?, ?, ?)',
+                [number_document, role_name, storeIds]
+            );
+        }else{
+            const store = stores.toString();
+            const deps = departments.toString();
+            await pool.execute('CALL AssignUserPermissionsSpecificDepartments(?, ?, ?, ?)',
+                [number_document, role_name, store, deps]);
+        }
+        console.log("pasa")
+        return true;
+    }
+    
+    async getAllUsers() {
+        const [users] = await pool.execute(`
+            SELECT u.number_document, u.alias_user, u.first_names, u.last_names, 
+            u.email, u.status_user, u.created_at, u.updated_at,
+            ur.role_name
+            FROM Users u
+            LEFT JOIN User_Role ur ON u.number_document = ur.number_document
+            WHERE u.status_user = true
+        `);
+        
+        return users.map(user => new User(
+            user.number_document,
+            user.alias_user,
+            user.first_names,
+            user.last_names,
+            user.email,
+            null, // No devolvemos la contraseña
+            user.status_user,
+            user.role_name // Añadimos el rol del usuario
+        ));
+    }
+    
+    // Obtener usuario por número de documento
+    async getUserByDocument(number_document) {
+        const [users] = await pool.execute(`
+            SELECT u.number_document, u.alias_user, u.first_names, u.last_names, 
+            u.email, u.status_user, u.created_at, u.updated_at,
+            ur.role_name
+            FROM Users u
+            LEFT JOIN User_Role ur ON u.number_document = ur.number_document
+            WHERE u.number_document = ? AND u.status_user = true
+        `, [number_document]);
+        
+        if (users.length === 0) return null;
+        
+        const user = users[0];
+        return new User(
+            user.number_document,
+            user.alias_user,
+            user.first_names,
+            user.last_names,
+            user.email,
+            null, // No devolvemos la contraseña
+            user.status_user,
+            user.role_name // Añadimos el rol del usuario
+        );
+    }
 
-    // Actualizar usuario
     async updateUser(number_document, userData) {
         // Verificar si el usuario existe
+        
         const existingUser = await this.getUserByDocument(number_document);
+        
         if (!existingUser) {
             throw new Error('Usuario no encontrado');
         }
-
         // Preparar los datos a actualizar
         const fieldsToUpdate = [];
         const values = [];
@@ -133,6 +176,7 @@ class UserController {
             fieldsToUpdate.push('alias_user = ?');
             values.push(userData.alias_user);
         }
+        
 
         if (userData.first_names) {
             fieldsToUpdate.push('first_names = ?');
@@ -148,12 +192,11 @@ class UserController {
             fieldsToUpdate.push('email = ?');
             values.push(userData.email);
         }
-
-        if (userData.status_user !== undefined) {
-            fieldsToUpdate.push('status_user = ?');
-            values.push(userData.status_user);
+        console.log("aa", userData.role_name);
+        if(userData.role_name){
+            await this.assignRoleToUser(number_document, userData.role_name, userData.stores, userData.departments);
         }
-
+        console.log("aa", existingUser);
         if (fieldsToUpdate.length === 0) {
             return existingUser;
         }
@@ -161,20 +204,15 @@ class UserController {
         // Añadir el número de documento al final para la cláusula WHERE
         values.push(number_document);
 
-        // Ejecutar la actualización
-        await pool.execute(
-            `UPDATE Users SET ${fieldsToUpdate.join(', ')} WHERE number_document = ?`,
-            values
-        );
+        // Actualizar el usuairo en la base de datos
 
         return this.getUserByDocument(number_document);
     }
 
     // Eliminar usuario (desactivar)
     async deleteUser(number_document) {
-        // En lugar de eliminar, desactivamos el usuario
         await pool.execute(
-            'UPDATE Users SET status_user = FALSE WHERE number_document = ?',
+            'DELETE FROM Users WHERE number_document = ?',
             [number_document]
         );
         return true;
@@ -294,99 +332,12 @@ class UserController {
         return departments;
     }
 
-    // Asignar un rol a un usuario
-    async assignRoleToUser(number_document, role_name, stores = null) {
-        // Verificar si el usuario existe
-        const user = await this.getUserByDocument(number_document);
-        if (!user) {
-            throw new Error('Usuario no encontrado');
-        }
-
-        // Verificar si el rol existe
-        const [roles] = await pool.execute(
-            'SELECT role_name FROM Roles WHERE role_name = ?',
-            [role_name]
-        );
-
-        if (roles.length === 0) {
-            throw new Error('Rol no encontrado');
-        }
-
-        // Verificar si ya tiene este rol
-        const [existingRole] = await pool.execute(
-            'SELECT id_user_role FROM User_Role WHERE number_document = ? AND role_name = ?',
-            [number_document, role_name]
-        );
-
-        if (existingRole.length > 0) {
-            throw new Error('El usuario ya tiene asignado este rol');
-        }
-
-        // Asignar el rol
-        await pool.execute(
-            'INSERT INTO User_Role (number_document, role_name) VALUES (?, ?)',
-            [number_document, role_name]
-        );
-
-        // Si el rol es Administrador, ejecutamos el procedimiento almacenado
-        if (role_name === 'Administrador') {
-            await pool.execute(
-                'CALL AssignUserPermissions(?, ?)',
-                [number_document, role_name]
-            );
-        }else if (role_name === 'Gerente' && stores) {
-            await pool.execute(
-                'CALL AssignUserPermissionsSpecificStores(?, ?, ?)',
-                [number_document, role_name, stores]
-            );
-        }
-
-        return true;
-    }
-
     // Quitar un rol a un usuario
     async removeRoleFromUser(number_document, role_name) {
         await pool.execute(
             'DELETE FROM User_Role WHERE number_document = ? AND role_name = ?',
             [number_document, role_name]
         );
-        return true;
-    }
-
-    // Asignar acceso a una tienda
-    async assignStoreAccess(number_document, id_store) {
-        // Verificar si el usuario existe
-        const user = await this.getUserByDocument(number_document);
-        if (!user) {
-            throw new Error('Usuario no encontrado');
-        }
-
-        // Verificar si la tienda existe
-        const [stores] = await pool.execute(
-            'SELECT id_store FROM Stores WHERE id_store = ?',
-            [id_store]
-        );
-
-        if (stores.length === 0) {
-            throw new Error('Tienda no encontrada');
-        }
-
-        // Verificar si ya tiene acceso a esta tienda
-        const [existingAccess] = await pool.execute(
-            'SELECT id_user_store FROM User_Store_Access WHERE number_document = ? AND id_store = ?',
-            [number_document, id_store]
-        );
-
-        if (existingAccess.length > 0) {
-            throw new Error('El usuario ya tiene acceso a esta tienda');
-        }
-
-        // Asignar acceso
-        await pool.execute(
-            'INSERT INTO User_Store_Access (number_document, id_store) VALUES (?, ?)',
-            [number_document, id_store]
-        );
-
         return true;
     }
 
@@ -404,86 +355,6 @@ class UserController {
         );
 
         return true;
-    }
-
-    // Asignar acceso a uno o varios departamentos
-    async assignDepartmentAccess(number_document, id_store, id_departments) {
-        // Verificar si el usuario existe
-        const user = await this.getUserByDocument(number_document);
-        if (!user) {
-            throw new Error('Usuario no encontrado');
-        }
-
-        // Verificar si tiene acceso a la tienda
-        const [storeAccess] = await pool.execute(
-            'SELECT id_user_store FROM User_Store_Access WHERE number_document = ? AND id_store = ?',
-            [number_document, id_store]
-        );
-
-        if (storeAccess.length === 0) {
-            throw new Error('El usuario no tiene acceso a esta tienda');
-        }
-
-        // Convertir a array si es un solo departamento
-        const departmentIds = Array.isArray(id_departments) ? id_departments : [id_departments];
-
-        // Verificar que todos los departamentos existen en la tienda
-        for (const id_department of departmentIds) {
-            const [departments] = await pool.execute(
-                'SELECT id_department FROM Department_Store WHERE id_store = ? AND id_department = ?',
-                [id_store, id_department]
-            );
-
-            if (departments.length === 0) {
-                throw new Error(`El departamento ${id_department} no existe en esta tienda`);
-            }
-        }
-
-        // Resultados de la operación
-        const results = [];
-
-        // Asignar acceso a cada departamento
-        for (const id_department of departmentIds) {
-            try {
-                // Verificar si ya tiene acceso a este departamento
-                const [existingAccess] = await pool.execute(
-                    'SELECT id_user_department FROM User_Department_Access WHERE number_document = ? AND id_store = ? AND id_department = ?',
-                    [number_document, id_store, id_department]
-                );
-
-                if (existingAccess.length > 0) {
-                    results.push({
-                        id_department,
-                        success: false,
-                        message: 'El usuario ya tiene acceso a este departamento'
-                    });
-                    continue;
-                }
-
-                // Asignar acceso
-                await pool.execute(
-                    'INSERT INTO User_Department_Access (number_document, id_store, id_department) VALUES (?, ?, ?)',
-                    [number_document, id_store, id_department]
-                );
-
-                results.push({
-                    id_department,
-                    success: true,
-                    message: 'Acceso asignado correctamente'
-                });
-            } catch (error) {
-                results.push({
-                    id_department,
-                    success: false,
-                    message: error.message
-                });
-            }
-        }
-
-        return {
-            allSuccessful: results.every(result => result.success),
-            results
-        };
     }
 
     // Quitar acceso a uno o varios departamentos
