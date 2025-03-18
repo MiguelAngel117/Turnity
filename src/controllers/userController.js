@@ -211,8 +211,6 @@ class UserController {
         );
 
         return this.getUserByDocument(number_document);
-
-        return this.getUserByDocument(number_document);
     }
 
     // Eliminar usuario (desactivar)
