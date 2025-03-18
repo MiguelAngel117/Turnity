@@ -192,11 +192,11 @@ class UserController {
             fieldsToUpdate.push('email = ?');
             values.push(userData.email);
         }
-        console.log("aa", userData.role_name);
+
         if(userData.role_name){
             await this.assignRoleToUser(number_document, userData.role_name, userData.stores, userData.departments);
         }
-        console.log("aa", existingUser);
+
         if (fieldsToUpdate.length === 0) {
             return existingUser;
         }
@@ -204,7 +204,13 @@ class UserController {
         // Añadir el número de documento al final para la cláusula WHERE
         values.push(number_document);
 
-        // Actualizar el usuairo en la base de datos
+        // Ejecutar la actualización
+        await pool.execute(
+            `UPDATE Users SET ${fieldsToUpdate.join(', ')} WHERE number_document = ?`,
+            values
+        );
+
+        return this.getUserByDocument(number_document);
 
         return this.getUserByDocument(number_document);
     }
