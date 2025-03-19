@@ -14,6 +14,7 @@ class UserController {
             userData.last_names || "",
             userData.email || "",
             userData.password || "",
+            userData.status_user || true,
             userData.role_name || ""
         );
         
@@ -28,14 +29,12 @@ class UserController {
             'SELECT number_document FROM Users WHERE number_document = ? OR email = ? OR alias_user = ?', 
             [user.number_document, user.email, user.alias_user]
         );
-
         
         if (existingUser.length > 0) {
             throw new Error('El usuario, email o alias ya existe en el sistema');
         }
         
         const hashedPassword = await encrypt(user.password);
-        console.log("Passa" + user);
         // Insertar el usuario
         await pool.execute(
             `INSERT INTO Users (number_document, alias_user, first_names, last_names, 
@@ -47,8 +46,7 @@ class UserController {
                 user.last_names, 
                 user.email, 
                 hashedPassword, 
-                user.status_user,
-                user.role_name
+                user.status_user
             ]
         );
 
@@ -218,14 +216,40 @@ class UserController {
         return this.getUserByDocument(number_document);
     }
 
-    // Eliminar usuario (desactivar)
+   // Eliminar usuario (desactivar)
     async deleteUser(number_document) {
-        await pool.execute(
-            'DELETE FROM Users WHERE number_document = ?',
-            [number_document]
-        );
-        return true;
+        try {
+            // Eliminar referencias en User_Department_Access
+            await pool.execute(
+                'DELETE FROM User_Department_Access WHERE number_document = ?',
+                [number_document]
+            );
+
+            // Eliminar referencias en User_Store_Access
+            await pool.execute(
+                'DELETE FROM User_Store_Access WHERE number_document = ?',
+                [number_document]
+            );
+
+            // Eliminar referencias en User_Role
+            await pool.execute(
+                'DELETE FROM User_Role WHERE number_document = ?',
+                [number_document]
+            );
+
+            // Finalmente, eliminar el usuario de Users
+            await pool.execute(
+                'DELETE FROM Users WHERE number_document = ?',
+                [number_document]
+            );
+
+            return true;
+        } catch (error) {
+            console.error('Error al eliminar el usuario:', error.message);
+            throw new Error('No se pudo eliminar el usuario. Por favor, intente nuevamente.');
+        }
     }
+
 
     // Login de usuario
     async loginUser(identifier, password) {

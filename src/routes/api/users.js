@@ -21,6 +21,7 @@ router.post('/login', async (req, res) => {
 // Ruta para registro de usuario
 router.post('/', checkAuth, checkRoleAuth(['Administrador']), async (req, res) => {
     try {
+        console.log(req.body);
         const newUser = await userController.createUser(req.body);
         res.status(201).json(newUser);
     } catch (error) {
@@ -64,8 +65,11 @@ router.put('/:number_document', checkAuth, checkRoleAuth(['Administrador']), asy
 // Eliminar usuario - solo Administrador
 router.delete('/:number_document', checkAuth, checkRoleAuth(['Administrador']), async (req, res) => {
     try {
-        await userController.deleteUser(req.params.number_document);
-        res.status(204).send();
+        const result = await userController.deleteUser(req.params.number_document);
+        if (!result) {
+            return res.status(404).json({ message: 'Usuario no encontrado' });
+        }
+        res.status(200).json({ message: 'Usuario eliminado correctamente' });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
