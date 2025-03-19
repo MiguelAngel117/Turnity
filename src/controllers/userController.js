@@ -192,6 +192,11 @@ class UserController {
             fieldsToUpdate.push('email = ?');
             values.push(userData.email);
         }
+        
+        if (userData.status_user) {
+            fieldsToUpdate.push('status_user = ?');
+            values.push(userData.status_user);
+        }
 
         if(userData.role_name){
             await this.assignRoleToUser(number_document, userData.role_name, userData.stores, userData.departments);
