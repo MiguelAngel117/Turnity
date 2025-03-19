@@ -7,6 +7,7 @@ class UserController {
     // Crear un nuevo usuario
     async createUser(userData) {
         console.log(userData.number_document);
+        
         const user = new User(
             String(userData.number_document), // Convertir a string
             userData.alias_user || "", // Asegurar que no sea undefined
@@ -14,49 +15,61 @@ class UserController {
             userData.last_names || "",
             userData.email || "",
             userData.password || "",
-            userData.status_user || true,
+            userData.status_user ?? true, // Manejar valores nulos o indefinidos correctamente
             userData.role_name || ""
         );
-        
-        
+
         const validationErrors = user.validate();
         if (validationErrors) {
             throw new Error(validationErrors.join(', '));
         }
-        
-        // Verificar si el usuario ya existe
-        const [existingUser] = await pool.execute(
-            'SELECT number_document FROM Users WHERE number_document = ? OR email = ? OR alias_user = ?', 
-            [user.number_document, user.email, user.alias_user]
-        );
-        
-        if (existingUser.length > 0) {
-            throw new Error('El usuario, email o alias ya existe en el sistema');
-        }
-        
-        const hashedPassword = await encrypt(user.password);
-        // Insertar el usuario
-        await pool.execute(
-            `INSERT INTO Users (number_document, alias_user, first_names, last_names, 
-            email, password, status_user) VALUES (?, ?, ?, ?, ?, ?, ?)`, 
-            [
-                user.number_document, 
-                user.alias_user, 
-                user.first_names, 
-                user.last_names, 
-                user.email, 
-                hashedPassword, 
-                user.status_user
-            ]
-        );
 
-        // Asignar rol por defecto si se especifica
-        if (userData.role_name) {
-            await this.assignRoleToUser(user.number_document, userData.role_name, userData.stores, userData.departments);
+        let connection;
+        try {
+            connection = await pool.getConnection(); // Obtener conexión del pool
+
+            // Verificar si el usuario ya existe
+            const [existingUser] = await connection.execute(
+                'SELECT number_document FROM Users WHERE number_document = ? OR email = ? OR alias_user = ?', 
+                [user.number_document, user.email, user.alias_user]
+            );
+
+            if (existingUser.length > 0) {
+                throw new Error('El usuario, email o alias ya existe en el sistema');
+            }
+
+            const hashedPassword = await encrypt(user.password);
+
+            // Insertar el usuario
+            await connection.execute(
+                `INSERT INTO Users (number_document, alias_user, first_names, last_names, 
+                email, password, status_user) VALUES (?, ?, ?, ?, ?, ?, ?)`, 
+                [
+                    user.number_document, 
+                    user.alias_user, 
+                    user.first_names, 
+                    user.last_names, 
+                    user.email, 
+                    hashedPassword, 
+                    user.status_user
+                ]
+            );
+
+            // Asignar rol si se especifica
+            if (userData.role_name) {
+                await this.assignRoleToUser(user.number_document, userData.role_name, userData.stores, userData.departments);
+            }
+
+            user.password = null;
+            return user;
+        } catch (error) {
+            console.error("Error al crear usuario:", error);
+            throw error;
+        } finally {
+            if (connection) connection.release();
         }
-        user.password = null;
-        return user;
     }
+
     
     async assignRoleToUser(number_document, role_name, stores = null, departments = null) {
         // Verificar si el usuario existe

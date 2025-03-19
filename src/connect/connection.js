@@ -21,6 +21,7 @@ async function initializePool() {
         const cloudConnection = await pool.getConnection();
         console.log('Conexión a la base de datos en la nube establecida con éxito 🚀');
         cloudConnection.release();
+        
     } catch (cloudError) {
         console.warn('No se pudo conectar a la base de datos en la nube:', cloudError.message);
         console.log('Intentando conexión local...');
@@ -48,7 +49,6 @@ async function initializePool() {
             throw new Error('No se pudo establecer conexión con ninguna base de datos');
         }
     }
-    
     return pool;
 }
 
