@@ -31,42 +31,41 @@ app.get('/', (req, res) => {
 const shutdown = async () => {
   console.log('🛑 Cerrando el pool de conexiones a la base de datos...');
   try {
-    try {
-      const killConnectionsQuery = `
-        SELECT CONCAT('KILL ', id, ';') 
-        FROM information_schema.processlist 
-        WHERE user = 'uaop1cnrfizjl7m8';
-      `;
-      const killUserConnectionsProcedure = `
-        CALL KillUserConnections('uaop1cnrfizjl7m8');
-      `;
+    // Matar conexiones activas del usuario
+    const killConnectionsQuery = `
+      SELECT CONCAT('KILL ', id, ';') 
+      FROM information_schema.processlist 
+      WHERE user = 'uaop1cnrfizjl7m8';
+    `;
+    const killUserConnectionsProcedure = `CALL KillUserConnections('uaop1cnrfizjl7m8');`;
 
-      // Ejecutar la primera consulta
+    try {
       const [killConnectionsResult] = await pool.query(killConnectionsQuery);
       console.log('🔄 Conexiones a eliminar:', killConnectionsResult);
 
-      // Ejecutar el procedimiento almacenado
       const [killProcedureResult] = await pool.query(killUserConnectionsProcedure);
       console.log('✅ Procedimiento ejecutado:', killProcedureResult);
     } catch (error) {
       console.error('❌ Error al ejecutar las consultas de cierre:', error);
     }
-      await pool.end(); // Cierra todas las conexiones del pool
-      console.log('✅ Todas las conexiones liberadas.');
+
+    // Esperar a que todas las conexiones del pool se cierren
+    await pool.end();
+    console.log('✅ Todas las conexiones liberadas.');
   } catch (error) {
-      console.error('❌ Error al cerrar conexiones:', error);
-  } finally {
-      process.exit(0); // Cerrar el proceso de Node.js
+    console.error('❌ Error al cerrar conexiones:', error);
   }
+
+  console.log('🚪 Saliendo del proceso de Node.js...');
+  process.exit(0);
 };
 
-process.on('SIGINT', shutdown);
-process.on('SIGTERM', shutdown); 
-process.on('uncaughtException', async (err) => {
-  console.error('❌ Error no controlado:', err);
-  await shutdown();
-});
-process.on('unhandledRejection', async (reason, promise) => {
-  console.error('❌ Promesa rechazada sin manejar:', promise, 'Razón:', reason);
-  await shutdown();
+// Escuchar señales del sistema y errores
+const exitEvents = ['SIGINT', 'SIGTERM', 'uncaughtException', 'unhandledRejection'];
+
+exitEvents.forEach(event => {
+  process.on(event, async (...args) => {
+    console.error(`❌ Evento capturado (${event}):`, args[0] || '');
+    await shutdown();
+  });
 });

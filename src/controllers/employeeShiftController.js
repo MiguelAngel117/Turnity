@@ -672,7 +672,7 @@ class EmployeeShiftController {
                            ORDER BY ed.contract_date DESC, ed.id_employee_dep DESC LIMIT 1) AS latest_working_day
                     FROM Employees e
                     JOIN Employees_Department ed ON e.number_document = ed.number_document
-                    JOIN positions p ON ed.id_position = p.id_position
+                    JOIN Positions p ON ed.id_position = p.id_position
                     WHERE e.number_document IN (${employeeIds})
                     GROUP BY e.number_document, e.full_name, p.name_position
                 `;
@@ -686,7 +686,7 @@ class EmployeeShiftController {
                     FROM Employees e
                     JOIN Employees_Department ed ON e.number_document = ed.number_document
                     JOIN Department_Store ds ON ed.id_store_dep = ds.id_store_dep
-                    JOIN positions p ON ed.id_position = p.id_position
+                    JOIN Positions p ON ed.id_position = p.id_position
                     JOIN Employee_Shift es ON e.number_document = es.number_document
                     WHERE es.shift_date BETWEEN ? AND ?
                 `;
