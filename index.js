@@ -40,22 +40,16 @@ const shutdown = async () => {
     const killUserConnectionsProcedure = `CALL KillUserConnections('uaop1cnrfizjl7m8');`;
 
     try {
-      const [killConnectionsResult] = await pool.query(killConnectionsQuery);
-      console.log('🔄 Conexiones a eliminar:', killConnectionsResult);
-
+      await pool.query(killConnectionsQuery);
       const [killProcedureResult] = await pool.query(killUserConnectionsProcedure);
       console.log('✅ Procedimiento ejecutado:', killProcedureResult);
     } catch (error) {
       console.error('❌ Error al ejecutar las consultas de cierre:', error);
     }
-
-    // Esperar a que todas las conexiones del pool se cierren
     await pool.end();
-    console.log('✅ Todas las conexiones liberadas.');
   } catch (error) {
     console.error('❌ Error al cerrar conexiones:', error);
   }
-
   console.log('🚪 Saliendo del proceso de Node.js...');
   process.exit(0);
 };

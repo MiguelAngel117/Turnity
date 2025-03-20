@@ -273,6 +273,7 @@ class UserController {
         const isEmail = identifier.includes('@');
     
         // Definir la consulta y parámetros según si es email o alias_user
+        
         if (isEmail) {
             query = 'SELECT * FROM Users WHERE email = ? AND status_user = true';
             params = [identifier];
@@ -280,10 +281,10 @@ class UserController {
             query = 'SELECT * FROM Users WHERE alias_user = ? AND status_user = true';
             params = [identifier];
         }
-    
+ 
         // Ejecutamos la consulta con el parámetro adecuado
         const [users] = await pool.execute(query, params);
-
+        console.log(isEmail);
         if (users.length === 0) {
             const param = isEmail ? 'Correo electrónico' : 'Nombre de usuario';
             throw new Error(`${param} Incorrecto`);
