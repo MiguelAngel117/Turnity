@@ -124,25 +124,79 @@ class UserController {
     }
     
     async getAllUsers() {
+        // Consulta principal que obtiene los usuarios con sus roles
         const [users] = await pool.execute(`
             SELECT u.number_document, u.alias_user, u.first_names, u.last_names, 
-            u.email, u.status_user, u.created_at, u.updated_at,
-            ur.role_name
+                   u.email, u.status_user, u.created_at, u.updated_at,
+                   ur.role_name
             FROM Users u
             LEFT JOIN User_Role ur ON u.number_document = ur.number_document
             WHERE u.status_user = true
         `);
         
-        return users.map(user => new User(
-            user.number_document,
-            user.alias_user,
-            user.first_names,
-            user.last_names,
-            user.email,
-            null, // No devolvemos la contraseña
-            user.status_user,
-            user.role_name // Añadimos el rol del usuario
-        ));
+        // Array para almacenar los resultados finales
+        const formattedUsers = [];
+        
+        // Procesamos cada usuario
+        for (const user of users) {
+            let stores = [];
+            let departments = [];
+            
+            // Dependiendo del rol, obtenemos las tiendas y departamentos
+            if (user.role_name === 'Gerente') {
+                // Para Gerentes: obtener todas las tiendas asignadas
+                const [storeAccess] = await pool.execute(`
+                    SELECT id_store 
+                    FROM User_Store_Access 
+                    WHERE number_document = ?
+                `, [user.number_document]);
+                
+                stores = storeAccess.map(store => store.id_store);
+            } 
+            else if (user.role_name === 'Jefe') {
+                // Para Jefes: obtener la única tienda asignada y sus departamentos
+                const [storeAccess] = await pool.execute(`
+                    SELECT id_store 
+                    FROM User_Store_Access 
+                    WHERE number_document = ?
+                `, [user.number_document]);
+                
+                stores = storeAccess.map(store => store.id_store);
+                
+                // Obtener departamentos asignados para esa tienda
+                const [deptAccess] = await pool.execute(`
+                    SELECT id_department 
+                    FROM User_Department_Access 
+                    WHERE number_document = ? AND id_store = ?
+                `, [user.number_document, stores[0]]);
+                
+                departments = deptAccess.map(dept => dept.id_department);
+            }
+            
+            // Crear el objeto de usuario con la información requerida
+            const userObj = {
+                number_document: user.number_document,
+                alias_user: user.alias_user,
+                first_names: user.first_names,
+                last_names: user.last_names,
+                email: user.email,
+                status_user: user.status_user,
+                role_name: user.role_name
+            };
+            
+            // Agregar tiendas y departamentos solo si corresponde al rol
+            if (userObj.role_name === 'Gerente' || userObj.role_name === 'Jefe') {
+                userObj.stores = stores;
+                // Solo agregar departamentos para Jefes
+                if (userObj.role_name === 'Jefe') {
+                    userObj.departments = departments;
+                }
+            }
+            
+            formattedUsers.push(userObj);
+        }
+        
+        return formattedUsers;
     }
     
     // Obtener usuario por número de documento
@@ -173,9 +227,8 @@ class UserController {
 
     async updateUser(number_document, userData) {
         // Verificar si el usuario existe
-        
         const existingUser = await this.getUserByDocument(number_document);
-        
+        console.log(userData);
         if (!existingUser) {
             throw new Error('Usuario no encontrado');
         }
