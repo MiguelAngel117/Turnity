@@ -22,14 +22,21 @@ class DepartmentStoreController {
     async getDepartmentStoreById(id_store_dep) {
         const [departmentStores] = await pool.execute(
             `SELECT ds.*, 
-                    s.name_store, 
-                    d.name_department 
+                s.name_store, 
+                d.name_department 
              FROM Department_Store ds
              JOIN Stores s ON ds.id_store = s.id_store
              JOIN Departments d ON ds.id_department = d.id_department
              WHERE ds.id_store_dep = ?`, 
             [id_store_dep]
         );
+
+        // Clean the department name if it starts with "TDA-"
+        departmentStores.forEach(ds => {
+            if (ds.name_department?.startsWith('TDA-')) {
+            ds.name_department = ds.name_department.substring(4);
+            }
+        });
         
         if (departmentStores.length === 0) return null;
         

@@ -426,7 +426,16 @@ class UserController {
             WHERE uda.number_document = ? AND uda.id_store = ?
         `, [number_document, id_store]);
         
-        return departments;
+        return departments.map(department => {
+            const cleanName = department.name_department?.startsWith('TDA-') 
+                ? department.name_department.substring(4)
+                : department.name_department;
+            
+            return {
+                id_department: department.id_department,
+                name_department: cleanName
+            };
+        });
     }
 
     // Quitar un rol a un usuario

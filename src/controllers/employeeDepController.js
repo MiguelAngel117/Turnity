@@ -108,9 +108,10 @@ class EmployeeDepartmentController {
     }
 
     async getAll() {
+        
         const [rows] = await pool.query(`
             SELECT ed.*, e.full_name, p.name_position, 
-                   d.name_department, s.name_store
+               d.name_department, s.name_store
             FROM Employees_Department ed
             JOIN Employees e ON e.number_document = ed.number_document
             JOIN Positions p ON p.id_position = ed.id_position
@@ -118,7 +119,18 @@ class EmployeeDepartmentController {
             JOIN Departments d ON d.id_department = ds.id_department
             JOIN Stores s ON s.id_store = ds.id_store
         `);
-        return rows;
+
+        const cleanedRows = rows.map(row => ({
+            ...row,
+            name_store: row.name_store?.startsWith('FALABELLA - ') 
+            ? row.name_store.substring(12) 
+            : row.name_store,
+            name_department: row.name_department?.startsWith('TDA-') 
+            ? row.name_department.substring(4) 
+            : row.name_department
+        }));
+
+        return cleanedRows;
     }
 
     async getByDocument(number_document) {
