@@ -35,7 +35,7 @@ class UserController {
             );
 
             if (existingUser.length > 0) {
-                throw new Error('El usuario, email o alias ya existe en el sistema');
+                return { status: 209, message: 'El usuario ya existe en el sistema' };
             }
 
             const hashedPassword = await encrypt(user.password);
@@ -61,7 +61,7 @@ class UserController {
             }
 
             user.password = null;
-            return user;
+            return {status: 201, user: user};
         } catch (error) {
             console.error("Error al crear usuario:", error);
             throw error;
@@ -131,7 +131,6 @@ class UserController {
                    ur.role_name
             FROM Users u
             LEFT JOIN User_Role ur ON u.number_document = ur.number_document
-            WHERE u.status_user = true
         `);
         
         // Array para almacenar los resultados finales
@@ -207,7 +206,7 @@ class UserController {
             ur.role_name
             FROM Users u
             LEFT JOIN User_Role ur ON u.number_document = ur.number_document
-            WHERE u.number_document = ? AND u.status_user = true
+            WHERE u.number_document = ?
         `, [number_document]);
         
         if (users.length === 0) return null;
@@ -228,9 +227,9 @@ class UserController {
     async updateUser(number_document, userData) {
         // Verificar si el usuario existe
         const existingUser = await this.getUserByDocument(number_document);
-        console.log(userData);
+        
         if (!existingUser) {
-            throw new Error('Usuario no encontrado');
+            return 'Usuario no encontrado';
         }
         // Preparar los datos a actualizar
         const fieldsToUpdate = [];
@@ -257,7 +256,7 @@ class UserController {
             values.push(userData.email);
         }
         
-        if (userData.status_user) {
+        if (userData.status_user !== undefined && userData.status_user !== null) {
             fieldsToUpdate.push('status_user = ?');
             values.push(userData.status_user);
         }
@@ -265,21 +264,19 @@ class UserController {
         if(userData.role_name){
             await this.assignRoleToUser(number_document, userData.role_name, userData.stores, userData.departments);
         }
-
         if (fieldsToUpdate.length === 0) {
-            return existingUser;
+            return {status:209, message: 'No hay campos para actualizar' };
         }
 
         // Añadir el número de documento al final para la cláusula WHERE
         values.push(number_document);
-
         // Ejecutar la actualización
         await pool.execute(
             `UPDATE Users SET ${fieldsToUpdate.join(', ')} WHERE number_document = ?`,
             values
         );
 
-        return this.getUserByDocument(number_document);
+        return {status: 200, data: this.getUserByDocument(number_document)};
     }
 
    // Eliminar usuario (desactivar)

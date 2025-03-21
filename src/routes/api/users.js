@@ -56,7 +56,11 @@ router.get('/:number_document', checkAuth, checkRoleAuth(['Administrador']), asy
 router.put('/:number_document', checkAuth, checkRoleAuth(['Administrador']), async (req, res) => {
     try {
         const updatedUser = await userController.updateUser(req.params.number_document, req.body);
-        res.json(updatedUser);
+        if(updatedUser.status === 209){
+            res.status(209).json({message: updatedUser.message});
+        }else{
+            res.json(updatedUser.data);
+        } 
     } catch (error) {
         res.status(400).json({ error: error.message });
     }
