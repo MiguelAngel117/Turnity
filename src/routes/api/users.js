@@ -18,6 +18,15 @@ router.post('/login', async (req, res) => {
     }
 });
 
+
+router.get('/verify-token', checkAuth, async (req, res) => {
+    try {
+        res.status(200).json({ message: 'Token válido' });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // Ruta para registro de usuario
 router.post('/', checkAuth, checkRoleAuth(['Administrador']), async (req, res) => {
     try {

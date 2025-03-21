@@ -108,18 +108,22 @@ class EmployeeDepartmentController {
     }
 
     async getAll() {
-        
         const [rows] = await pool.query(`
             SELECT ed.*, e.full_name, p.name_position, 
-               d.name_department, s.name_store
+                   d.name_department, s.name_store
             FROM Employees_Department ed
             JOIN Employees e ON e.number_document = ed.number_document
             JOIN Positions p ON p.id_position = ed.id_position
             JOIN Department_Store ds ON ds.id_store_dep = ed.id_store_dep
             JOIN Departments d ON d.id_department = ds.id_department
             JOIN Stores s ON s.id_store = ds.id_store
+            WHERE ed.contract_date = (
+                SELECT MAX(ed2.contract_date)
+                FROM Employees_Department ed2
+                WHERE ed2.number_document = ed.number_document
+            )
         `);
-
+    
         const cleanedRows = rows.map(row => ({
             ...row,
             name_store: row.name_store?.startsWith('FALABELLA - ') 
@@ -129,9 +133,10 @@ class EmployeeDepartmentController {
             ? row.name_department.substring(4) 
             : row.name_department
         }));
-
+    
         return cleanedRows;
     }
+    
 
     async getByDocument(number_document) {
         const [rows] = await pool.query(`
